@@ -1,0 +1,5 @@
+{
+    "cmd" : [{"flag" : "USERINPUT"}, {"flag2" : "value"}],
+
+    "cmd2" : [{"flag" : "USERINPUT"}, {"flag2" : "value"}]
+}
