@@ -10,9 +10,9 @@ class CmdParser():
     def __init__(self, command : str):
         # some commands reuse values and some require the input & outpust spots
         self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command)
-        self.flags = []
+        self.flags ={} 
         for match in self.raw_flag_matches:
-            self.flags.append({match[0] : match[1]})
+            self.flags[match[0]] = match[1]
 
 
 
@@ -37,7 +37,7 @@ class JsonProcessor():
         data[name] = parser.flags
 
         with open("ffmpeg_cmd_list.json", "w") as f:
-            json.dump(data, f, indent=4)
+            json.dump(data, f, indent=4, separators=(',',':'))
 
         
 
@@ -67,8 +67,6 @@ class CmdListWidget(QListWidget):
     def __init__(self):
         super().__init__()
         processor = JsonProcessor()
-        processor.add_command("test_cmd", "ffmpeg -i in0.mp4 -i in1.mp4 -c copy -map 0:0 -map 1:1 -shortest out.mp4")
-
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
         # i need a way to convert cmds to json and json to cmds

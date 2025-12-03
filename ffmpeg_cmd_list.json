@@ -1,5 +1,8 @@
 {
-    "cmd" : [{"flag" : "USERINPUT"}, {"flag2" : "value"}],
-
-    "cmd2" : [{"flag" : "USERINPUT"}, {"flag2" : "value"}]
+    "test_cmd":{
+        "-i":"in1.mp4",
+        "-c":"copy",
+        "-map":"1:1",
+        "-shortest":"out.mp4"
+    }
 }
