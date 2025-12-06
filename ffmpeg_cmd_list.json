@@ -1,8 +1,9 @@
 {
     "test_cmd":{
         "-i":"in1.mp4",
-        "-c":"copy",
-        "-map":"1:1",
+        "-c":"[copy flag]",
+        "-map":"[map value]",
         "-shortest":"out.mp4"
-    }
+    },
+    "test":{}
 }

@@ -1,12 +1,12 @@
 import sys
-import wizard_util
+import wizard_util as util
+import re
+from enum import Enum
 from PyQt6.QtWidgets import *
-from PyQt6 import QtCore, QtGui
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-
-processor = wizard_util.JsonProcessor()
+processor = util.processor
 
 
 class MainWindow(QMainWindow):
@@ -20,19 +20,19 @@ class MainWindow(QMainWindow):
         user_input_upper_layout = QGridLayout()
         user_input_lower_layout = QGridLayout()
 
-
-        cmd_list = CmdListWidget()
-        cmd_list_layout.addWidget(cmd_list)
+        self.cmd_list = CmdListWidget()
+        cmd_list_layout.addWidget(self.cmd_list)
 
         text_box = QTextEdit()
         text_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         text_box.setFixedHeight(30)
 
-        add_cmd = AddCmdButton()
+
+        self.add_cmd = AddCmdButton(text_box)
 
         self.input_list = CmdInputListWidget()
 
-        output_button = QPushButton()
+        output_button = IOButton(util.IOButtonEnum.NEWFILE)
         output_button.setText("Output")
         output_button.setFixedSize(100, 40)
 
@@ -40,9 +40,8 @@ class MainWindow(QMainWindow):
         run_button.setText("Run")
         run_button.setFixedSize(100, 40)
 
-
         user_input_upper_layout.addWidget(text_box,1,0)
-        user_input_upper_layout.addWidget(add_cmd,0,1)
+        user_input_upper_layout.addWidget(self.add_cmd,0,1)
 
         user_input_lower_layout.addWidget(self.input_list,0,0)
         user_input_lower_layout.addWidget(output_button,0,1)
@@ -64,34 +63,88 @@ class MainWindow(QMainWindow):
         self.show()
 
     def event(self, e):
-        if e.type() == wizard_util.CmdChangedEventType:
+        if e.type() == util.CmdChangedEventType:
             self.input_list.update_list(e.cmd_input)
+            self.cmd_list.update_list()
+            return True
+        if e.type() == util.PathReceivedEventType:
+            print(e.path)
+            print(e.io_type)
             return True
         return super().event(e)
-
-
-#                         Widgets
-# ============================================================ #
 
 
 class CmdInputListWidget(QWidget):
     def __init__(self):
         super().__init__()
         global processor
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll.setWidgetResizable(True)
+
+        self.container = QWidget()
         self.list_layout = QVBoxLayout()
+        self.container.setLayout(self.list_layout)
 
-        self.setLayout(self.list_layout)
-    
-    def update_list(self, input_list : dict):
-        for (flag, value) in input_list.items():
-            row_layout = QHBoxLayout()
-            row_layout.addWidget(QLabel(flag))
-            row_layout.addWidget(QTextEdit())
-            self.list_layout.addLayout(row_layout)
+        self.scroll.setWidget(self.container)
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.scroll)
+        self.setLayout(main_layout)
 
+        self.label_width = 70
+
+    def add_row(self, label_text: str, flag: str = ""):
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+
+        row_widget.setMaximumHeight(60)
+
+        if flag == "-i":
+            input_button = IOButton(util.IOButtonEnum.FILE)
+            input_button.setText("Browse for Input Video")
+            input_button.setMinimumWidth(self.label_width)
+            input_button.setMaximumWidth(self.label_width)
+            input_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+            label = QLabel()
+
+        label = QLabel(label_text)
+        label.setMinimumWidth(self.label_width)
+        label.setMaximumWidth(self.label_width)
+        label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        editor = QLineEdit("")
+        editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        row_layout.addWidget(label)
+        row_layout.addWidget(editor)
+
+        self.list_layout.addWidget(row_widget)
     
+    # need to make it so -i flag is listed as input and opens file browser
+    def update_list(self, input_list: dict):
+        while self.list_layout.count():
+            child = self.list_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        for flag, value in input_list.items():
+            value_str = str(value)
+
+            # Match label in brackets
+            label_match = re.fullmatch(r"\[(.*?)\]", value_str)
+            label = label_match.group(1) if label_match else ""
+
+            # Match filename with dot (e.g., output.mp4)
+            out_match = re.search(r".*\..*", value_str)
+            out_name = out_match.group(0) if out_match else ""
+
+            self.add_row(label, flag)
+
+
 
 class CmdListWidget(QListWidget):
     def __init__(self):
@@ -100,28 +153,74 @@ class CmdListWidget(QListWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
         # i need a way to convert cmds to json and json to cmds
+        scroll_bar = QScrollBar(self)
+        scroll_bar.setStyleSheet("background : gray;")
+        self.setVerticalScrollBar(scroll_bar)
+        self.update_list()
+
+        self.itemClicked.connect(self.cmd_clicked)
+    
+    def update_list(self):
+        self.clear()
         for command in processor.get_all_commands():
             item = QListWidgetItem(command)
             self.addItem(item)
 
-        scroll_bar = QScrollBar(self)
-        scroll_bar.setStyleSheet("background : gray;")
-        self.setVerticalScrollBar(scroll_bar)
-
-        self.itemClicked.connect(self.cmd_clicked)
     
     def cmd_clicked(self, item : QListWidgetItem):
         global processor
         current_cmd = {item.text() : processor.get_command(item.text())}
-        QApplication.postEvent(window, wizard_util.CmdChangedEvent(current_cmd))
+        QApplication.postEvent(window, util.CmdChangedEvent(current_cmd))
+
 
 class AddCmdButton(QPushButton):
-    def __init__(self):
+    def __init__(self, input_text_box : QTextEdit):
         super().__init__()
         self.geometry = QRect(20,20,10,10)
+        self.clicked.connect(self.add_new_cmd)
+        self.input_box = input_text_box
     
- 
+    def add_new_cmd(self):
+        processor.add_command("test", self.input_box.toPlainText())
 
+
+
+class IOButton(QPushButton):
+    def __init__(self, type : util.IOButtonEnum):
+        super().__init__()
+        match type:
+            case util.IOButtonEnum.FILE:
+                self.clicked.connect(self.browse_for_file)
+            case util.IOButtonEnum.DIRECTORY:
+                self.clicked.connect(self.browse_for_directory)
+            case util.IOButtonEnum.NEWFILE:
+                self.clicked.connect(self.browse_for_save_directory)
+        
+    def browse_for_directory(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "Select a Directory")
+
+        if folder_path:
+            QApplication.postEvent(window, util.PathReceivedEvent((folder_path, util.IOButtonEnum.DIRECTORY)))
+            return folder_path
+        return ""
+    
+    def browse_for_save_directory(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Output File", "", "Video Files (*.mp4);;All Files (*)")
+
+        if file_path:
+            QApplication.postEvent(window, util.PathReceivedEvent((file_path, util.IOButtonEnum.NEWFILE)))
+            return file_path
+        return file_path
+
+    def browse_for_file(self):
+        file_path = QFileDialog.getOpenFileName(self, "Select a File","","All Files (*)")
+
+        if file_path:
+            QApplication.postEvent(window, util.PathReceivedEvent((file_path, util.IOButtonEnum.FILE)))
+            return file_path
+        
+        return ""
+    
 
 app = QApplication(sys.argv)
 

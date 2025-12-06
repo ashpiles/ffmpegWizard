@@ -1,10 +1,19 @@
 
 import re
 import json
+from enum import Enum
 from PyQt6.QtCore import QEvent
 
 
 CmdChangedEventType = QEvent.registerEventType()
+PathReceivedEventType = QEvent.registerEventType()
+
+class IOButtonEnum(Enum):
+    DIRECTORY = 1
+    FILE = 2
+    NEWFILE = 3
+
+
 
 class CmdChangedEvent(QEvent):
     def __init__(self, data):
@@ -14,6 +23,11 @@ class CmdChangedEvent(QEvent):
         except StopIteration:
             raise ValueError("CmdChangedEvent received empty dict")
 
+
+class PathReceivedEvent(QEvent):
+    def __init__(self, data):
+        super().__init__(PathReceivedEventType)
+        self.path, self.io_type = data 
 
 
 class CmdParser():
@@ -62,3 +76,4 @@ class JsonProcessor():
             json.dump(data, f, indent=4, separators=(',',':'))
 
 
+processor = JsonProcessor()
