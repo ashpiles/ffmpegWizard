@@ -27,7 +27,6 @@ class MainWindow(QMainWindow):
         text_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         text_box.setFixedHeight(30)
 
-
         self.add_cmd = AddCmdButton(text_box)
 
         self.input_list = CmdInputListWidget()
@@ -67,13 +66,9 @@ class MainWindow(QMainWindow):
             self.input_list.update_list(e.cmd_input)
             self.cmd_list.update_list()
             return True
-        if e.type() == util.PathReceivedEventType:
-            print(e.path)
-            print(e.io_type)
-            return True
         return super().event(e)
 
-
+    
 class CmdInputListWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -106,23 +101,25 @@ class CmdInputListWidget(QWidget):
             input_button = IOButton(util.IOButtonEnum.FILE)
             input_button.setText("Browse for Input Video")
             input_button.setMinimumWidth(self.label_width)
-            input_button.setMaximumWidth(self.label_width)
+            input_button.setMaximumWidth(self.label_width + 100)
             input_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-            label = QLabel()
+            row_layout.addWidget(input_button)
+            self.list_layout.addWidget(row_widget)
 
-        label = QLabel(label_text)
-        label.setMinimumWidth(self.label_width)
-        label.setMaximumWidth(self.label_width)
-        label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        elif label_text != "":
+            label = QLabel(label_text)
+            label.setMinimumWidth(self.label_width)
+            label.setMaximumWidth(self.label_width)
+            label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-        editor = QLineEdit("")
-        editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            editor = QLineEdit("")
+            editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        row_layout.addWidget(label)
-        row_layout.addWidget(editor)
+            row_layout.addWidget(label)
+            row_layout.addWidget(editor)
 
-        self.list_layout.addWidget(row_widget)
+            self.list_layout.addWidget(row_widget)
     
     # need to make it so -i flag is listed as input and opens file browser
     def update_list(self, input_list: dict):
@@ -165,7 +162,6 @@ class CmdListWidget(QListWidget):
         for command in processor.get_all_commands():
             item = QListWidgetItem(command)
             self.addItem(item)
-
     
     def cmd_clicked(self, item : QListWidgetItem):
         global processor
@@ -186,21 +182,26 @@ class AddCmdButton(QPushButton):
 
 
 class IOButton(QPushButton):
-    def __init__(self, type : util.IOButtonEnum):
+    def __init__(self, io_type : util.IOButtonEnum):
         super().__init__()
-        match type:
+        self.io_type = io_type
+        self.io_path = ""
+        self.clicked.connect(self.get_io_func())
+
+    def get_io_func(self):
+        match self.io_type:
             case util.IOButtonEnum.FILE:
-                self.clicked.connect(self.browse_for_file)
+                return self.browse_for_file
             case util.IOButtonEnum.DIRECTORY:
-                self.clicked.connect(self.browse_for_directory)
+                return self.browse_for_directory
             case util.IOButtonEnum.NEWFILE:
-                self.clicked.connect(self.browse_for_save_directory)
+                return self.browse_for_save_directory
         
     def browse_for_directory(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select a Directory")
 
         if folder_path:
-            QApplication.postEvent(window, util.PathReceivedEvent((folder_path, util.IOButtonEnum.DIRECTORY)))
+            self.io_path = folder_path
             return folder_path
         return ""
     
@@ -208,7 +209,7 @@ class IOButton(QPushButton):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Output File", "", "Video Files (*.mp4);;All Files (*)")
 
         if file_path:
-            QApplication.postEvent(window, util.PathReceivedEvent((file_path, util.IOButtonEnum.NEWFILE)))
+            self.io_path = file_path
             return file_path
         return file_path
 
@@ -216,7 +217,7 @@ class IOButton(QPushButton):
         file_path = QFileDialog.getOpenFileName(self, "Select a File","","All Files (*)")
 
         if file_path:
-            QApplication.postEvent(window, util.PathReceivedEvent((file_path, util.IOButtonEnum.FILE)))
+            self.io_path = file_path
             return file_path
         
         return ""

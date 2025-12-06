@@ -2,17 +2,15 @@
 import re
 import json
 from enum import Enum
-from PyQt6.QtCore import QEvent
+from PyQt6.QtCore import QEvent, QObject, pyqtSignal, pyqtSlot
 
 
 CmdChangedEventType = QEvent.registerEventType()
-PathReceivedEventType = QEvent.registerEventType()
 
 class IOButtonEnum(Enum):
     DIRECTORY = 1
     FILE = 2
     NEWFILE = 3
-
 
 
 class CmdChangedEvent(QEvent):
@@ -23,12 +21,12 @@ class CmdChangedEvent(QEvent):
         except StopIteration:
             raise ValueError("CmdChangedEvent received empty dict")
 
+class LabelUpdater(QObject):
+    text_changed = pyqtSignal(str)
 
-class PathReceivedEvent(QEvent):
-    def __init__(self, data):
-        super().__init__(PathReceivedEventType)
-        self.path, self.io_type = data 
-
+    @pyqtSlot(str)
+    def update_label(self, text):
+        self.label.setText(text)
 
 class CmdParser():
     def __init__(self, command : str):
