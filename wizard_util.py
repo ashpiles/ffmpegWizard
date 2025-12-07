@@ -15,11 +15,15 @@ class IOButtonEnum(Enum):
     OUTFILE = 3
 
 
+# how do we parse the array?
 def toCommand(in_cmd):
     cmd ="ffmpeg"
     for f,v in in_cmd.items():
         if f == "out":
             cmd += " " + v
+        elif isinstance(v, list):
+            for x in v:
+                cmd += " " + f + " " + x
         else:
             cmd += " " + f + " " + v
     return cmd
@@ -55,11 +59,15 @@ class CmdParser():
         # some commands reuse values and some require the input & outpust spots
         self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command) 
         self.flags ={} 
+        self.flags["-i"] = []
         out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
         out_flag,out_value = out_match[0]
   
-        for match in self.raw_flag_matches:
-            self.flags[match[0]] = match[1]
+        for flag_match in self.raw_flag_matches:
+            if flag_match[0] == "-i":
+                self.flags["-i"] += [flag_match[1]]
+            else:
+                self.flags[flag_match[0]] = flag_match[1]
         if out_flag == '':
             self.flags["out"] = out_value
     

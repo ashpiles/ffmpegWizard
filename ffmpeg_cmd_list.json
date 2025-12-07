@@ -1,10 +1,5 @@
 {
-    "test_cmd":{
-        "-i":"in1.mp4",
-        "-c":"[copy flag]",
-        "-map":"[map value]",
-        "-shortest":"out.mp4"
-    },
+
     "High-quality encoding":{
         "-i":"in.mp4",
         "-preset":"slower",
@@ -14,11 +9,6 @@
     "Basic Conversion":{
         "-i":"in.mp4",
         "out":"out.avi"
-    },
-    "New Command":{
-        "-i":"in1.mp4",
-        "-c":"test[copy_flag]",
-        "-map":"[map_value]ing",
-        "-shortest":"out.mp4"
     }
+
 }

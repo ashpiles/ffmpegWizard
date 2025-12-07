@@ -116,19 +116,21 @@ class CmdInputListWidget(QWidget):
         value, prefix, affix = "", "",""
         if match:
             prefix, value, affix = match[0]
-        row_layout = QHBoxLayout(row_widget)
 
+        row_layout = QHBoxLayout(row_widget)
         row_widget.setMaximumHeight(60)
 
         if flag == "-i":
-            input_button = IOButton(util.IOButtonEnum.INFILE)
-            input_button.setText("Browse for Input Video")
-            input_button.setMinimumWidth(self.label_width)
-            input_button.setMaximumWidth(self.label_width + 100)
-            input_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            inputs = re.findall(r"(?<=\')([^\,].*?)(?=\')", value)
+            for x in inputs:
 
-            row_layout.addWidget(input_button)
-            self.list_layout.addWidget(row_widget)
+                input_button = IOButton(util.IOButtonEnum.INFILE)
+                input_button.setText("Browse for Input Video")
+                input_button.setMinimumWidth(self.label_width)
+                input_button.setMaximumWidth(self.label_width + 100)
+                input_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+                self.list_layout.addWidget(input_button)
 
         elif value != "" :
             value = re.findall(r"(?<=\[).*?(?=\])", value)[0]
@@ -251,6 +253,7 @@ class IOButton(QPushButton):
         super().__init__()
         self.io_type = io_type
         self.io_path = ""
+        self.hash = hash(self)
         self.clicked.connect(self.get_io_func())
 
     def get_io_func(self):
