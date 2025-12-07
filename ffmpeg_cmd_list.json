@@ -5,5 +5,20 @@
         "-map":"[map value]",
         "-shortest":"out.mp4"
     },
-    "test":{}
+    "High-quality encoding":{
+        "-i":"in.mp4",
+        "-preset":"slower",
+        "-crf":"18",
+        "out":"out.mp4"
+    },
+    "Basic Conversion":{
+        "-i":"in.mp4",
+        "out":"out.avi"
+    },
+    "New Command":{
+        "-i":"in1.mp4",
+        "-c":"test[copy_flag]",
+        "-map":"[map_value]ing",
+        "-shortest":"out.mp4"
+    }
 }

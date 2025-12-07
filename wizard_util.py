@@ -6,12 +6,23 @@ from PyQt6.QtCore import QEvent, QObject, pyqtSignal, pyqtSlot
 
 
 CmdChangedEventType = QEvent.registerEventType()
+CmdTextEditedEventType = QEvent.registerEventType()
+FileIOEventType = QEvent.registerEventType()
 
 class IOButtonEnum(Enum):
     DIRECTORY = 1
-    FILE = 2
-    NEWFILE = 3
+    INFILE = 2
+    OUTFILE = 3
 
+
+def toCommand(in_cmd):
+    cmd ="ffmpeg"
+    for f,v in in_cmd.items():
+        if f == "out":
+            cmd += " " + v
+        else:
+            cmd += " " + f + " " + v
+    return cmd
 
 class CmdChangedEvent(QEvent):
     def __init__(self, data):
@@ -20,6 +31,17 @@ class CmdChangedEvent(QEvent):
             self.cmd_key, self.cmd_input = next(iter(data.items()))
         except StopIteration:
             raise ValueError("CmdChangedEvent received empty dict")
+
+class CmdTextEditedEvent(QEvent):
+    def __init__(self, data : tuple):
+        super().__init__(CmdTextEditedEventType)
+        self.cmd_flag, self.cmd_value = data
+
+class FileIOEvent(QEvent):
+    def __init__(self, data : tuple): 
+        super().__init__(FileIOEventType)
+        self.file_path, self.io_type = data
+
 
 class LabelUpdater(QObject):
     text_changed = pyqtSignal(str)
@@ -31,10 +53,18 @@ class LabelUpdater(QObject):
 class CmdParser():
     def __init__(self, command : str):
         # some commands reuse values and some require the input & outpust spots
-        self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command)
+        self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command) 
         self.flags ={} 
+        out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
+        out_flag,out_value = out_match[0]
+  
         for match in self.raw_flag_matches:
             self.flags[match[0]] = match[1]
+        if out_flag == '':
+            self.flags["out"] = out_value
+    
+    def get_cmd(self):
+        return toCommand(self.flags.items())
 
 
 class JsonProcessor():
