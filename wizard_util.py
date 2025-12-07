@@ -24,6 +24,7 @@ def toCommand(in_cmd):
             cmd += " " + f + " " + v
     return cmd
 
+
 class CmdChangedEvent(QEvent):
     def __init__(self, data):
         super().__init__(CmdChangedEventType)
@@ -32,10 +33,12 @@ class CmdChangedEvent(QEvent):
         except StopIteration:
             raise ValueError("CmdChangedEvent received empty dict")
 
+
 class CmdTextEditedEvent(QEvent):
     def __init__(self, data : tuple):
         super().__init__(CmdTextEditedEventType)
         self.cmd_flag, self.cmd_value = data
+
 
 class FileIOEvent(QEvent):
     def __init__(self, data : tuple): 
@@ -50,16 +53,22 @@ class LabelUpdater(QObject):
     def update_label(self, text):
         self.label.setText(text)
 
+
 class CmdParser():
     def __init__(self, command : str):
         # some commands reuse values and some require the input & outpust spots
         self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command) 
         self.flags ={} 
+        self.flags["-i"] = []
         out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
         out_flag,out_value = out_match[0]
   
         for match in self.raw_flag_matches:
-            self.flags[match[0]] = match[1]
+            if match[0] == "-i":
+                self.flags["i"].append(match[1])
+                pass
+            else:
+                self.flags[match[0]] = match[1]
         if out_flag == '':
             self.flags["out"] = out_value
     

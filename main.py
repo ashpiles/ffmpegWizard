@@ -26,12 +26,15 @@ class MainWindow(QMainWindow):
 
         text_box = QTextEdit()
         text_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        text_box.setFixedHeight(30)
+        text_box.setFixedHeight(40)
 
         self.text_box = text_box
         self.add_cmd = AddCmdButton(text_box)
 
-        self.input_list = CmdInputListWidget()
+        # think about how to handle multiple input files
+        input_video = IOButton(util.IOButtonEnum.INFILE)
+        input_video.setText("Input")
+        input_video.setFixedSize(100, 40)
 
         output_button = IOButton(util.IOButtonEnum.OUTFILE)
         output_button.setText("Output")
@@ -44,7 +47,7 @@ class MainWindow(QMainWindow):
         user_input_upper_layout.addWidget(text_box,1,0)
         user_input_upper_layout.addWidget(self.add_cmd,0,1)
 
-        user_input_lower_layout.addWidget(self.input_list,0,0)
+        user_input_lower_layout.addWidget(input_video,0,0)
         user_input_lower_layout.addWidget(output_button,0,1)
         user_input_lower_layout.addWidget(run_button,2,0)
 
@@ -65,7 +68,6 @@ class MainWindow(QMainWindow):
 
     def event(self, e):
         if e.type() == util.CmdChangedEventType:
-            self.input_list.update_list(e.cmd_input)
             self.cmd_list.update_list()
             self.current_cmd = e.cmd_input
             self.text_box.setText(util.toCommand(self.current_cmd))
@@ -86,87 +88,6 @@ class MainWindow(QMainWindow):
                     pass
             self.text_box.setText(util.toCommand(self.current_cmd))
         return super().event(e)
-
-    
-class CmdInputListWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-        global processor
-
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.scroll.setWidgetResizable(True)
-
-        self.container = QWidget()
-        self.list_layout = QVBoxLayout()
-        self.container.setLayout(self.list_layout)
-
-        self.scroll.setWidget(self.container)
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.scroll)
-        self.setLayout(main_layout)
-
-        self.label_width = 70
-
-    def add_row(self, value_str: str, flag: str = ""):
-        row_widget = QWidget()
-        match = re.findall(r"(.*?)(\[.*\])(.*?$)", value_str)
-        value, prefix, affix = "", "",""
-        if match:
-            prefix, value, affix = match[0]
-        row_layout = QHBoxLayout(row_widget)
-
-        row_widget.setMaximumHeight(60)
-
-        if flag == "-i":
-            input_button = IOButton(util.IOButtonEnum.INFILE)
-            input_button.setText("Browse for Input Video")
-            input_button.setMinimumWidth(self.label_width)
-            input_button.setMaximumWidth(self.label_width + 100)
-            input_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-            row_layout.addWidget(input_button)
-            self.list_layout.addWidget(row_widget)
-
-        elif value != "" :
-            value = re.findall(r"(?<=\[).*?(?=\])", value)[0]
-            label = QLabel(value)
-            label.setMinimumWidth(self.label_width)
-            label.setMaximumWidth(self.label_width)
-            label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-            row_layout.addWidget(label)
-            if prefix != "":
-                prefix_label = QLabel(prefix)
-                row_layout.addWidget(prefix_label)
-
-            editor = QLineEdit("")
-            def text_changed_event():
-                QApplication.postEvent(window, util.CmdTextEditedEvent((flag,prefix+editor.text()+affix)))
-
-            editor.textChanged.connect(text_changed_event)
-            editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-            row_layout.addWidget(editor)
-
-            if affix != "":
-                affix_label = QLabel(affix)
-                row_layout.addWidget(affix_label)
-
-
-            self.list_layout.addWidget(row_widget)
-    
-    def update_list(self, input_list: dict):
-        while self.list_layout.count():
-            child = self.list_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-        for flag, value in input_list.items():
-            value_str = str(value)
-            self.add_row(value_str, flag)
 
 
 class CmdListWidget(QListWidget):
