@@ -58,14 +58,14 @@ class CmdParser():
     def __init__(self, command : str):
         # some commands reuse values and some require the input & outpust spots
         self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command) 
-        self.flags ={} 
+        self.flags = {}
         self.flags["-i"] = []
         out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
         out_flag,out_value = out_match[0]
   
         for flag_match in self.raw_flag_matches:
             if flag_match[0] == "-i":
-                self.flags["-i"] += [flag_match[1]]
+                self.flags["-i"] = self.flags["-i"] + [flag_match[1]]
             else:
                 self.flags[flag_match[0]] = flag_match[1]
         if out_flag == '':
