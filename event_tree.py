@@ -6,6 +6,15 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
+
+
+#======================================================================================
+# Allows for non-permanent widgets to communicate to one another with events
+# a Node is given a signal, this signal is the function called on the event trigger
+# When a node triggers an event it is given to the tree
+# which then finds the correct node and launches that nodes stored func
+#======================================================================================
+
 EventTreeNodeEventType = QEvent.registerEventType()
 EventTreeNodeHandShakeType = QEvent.registerEventType()
 
@@ -18,7 +27,7 @@ class EventTreeNodeEvent(QEvent):
    
 class Node(QWidget):
     on_node_move = pyqtSignal(str, str)
-    on_node_event = pyqtSignal(list)
+    on_node_event = pyqtSignal(int, str, list)
 
     def __init__(self, name : str, widget : QWidget):
         super().__init__()
@@ -65,8 +74,8 @@ class Node(QWidget):
         return None
 
 
-    def _receive_event_data(self, data):
-        self.on_node_event.emit(data)
+    def _receive_event_data(self, node_id, target_path, data):
+        self.on_node_event.emit(node_id, target_path, data)
     
 
 
@@ -130,7 +139,7 @@ class EventTree(QWidget):
         if e.type() == EventTreeNodeEventType:
             target = self.get_node(e.target_path)
             if target:
-                target._receive_event_data(e.node_data)
+                target._receive_event_data(e.sender_id, e.target_path, e.node_data)
             return True
         return super().event(e)
 
@@ -152,7 +161,7 @@ for i in range(0,10):
 
 print(tree.ROOT)
 
-node3.on_node_event.connect(lambda x : print(x[0]))
+node3.on_node_event.connect(lambda x,y,z: print(x,y,z[0]))
 sender.send_event(node3.tree_path, ["hello world"])
 
 app.exec()
