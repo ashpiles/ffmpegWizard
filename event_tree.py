@@ -18,6 +18,17 @@ from PyQt6.QtCore import *
 EventTreeNodeEventType = QEvent.registerEventType()
 EventTreeNodeHandShakeType = QEvent.registerEventType()
 
+class NodeItemEventFilter(QObject):
+    hovered = pyqtSignal(QWidget)
+    unhovered = pyqtSignal(QWidget)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Enter:
+            self.hovered.emit(obj)
+        if event.type() == QEvent.Type.Leave:
+            self.unhovered.emit(obj)
+        return super().eventFilter(obj, event)
+
 # Nodes send's an event to the tree
 # the tree finds the target node and delivers data
 class EventTreeNodeEvent(QEvent):
@@ -25,21 +36,36 @@ class EventTreeNodeEvent(QEvent):
         super().__init__(EventTreeNodeEventType)
         self.sender_id, self.target_path, self.node_data = package
    
+# the issue is that the actual node widget wants to b able to 
+# render itself
+# we also need to pass a widget inside the socket
+# okay the widget is a container for the children
+    # but children will be other containers
+    # we need a node that is a container & a leaf?
+
+# the next node will use our socket
+# the node itself is made up of its children
+# however when its parent asks for it it retrieves our widget_socket
 class Node(QWidget):
     on_node_move = pyqtSignal(str, str)
     on_node_event = pyqtSignal(int, str, list)
 
-    def __init__(self, name : str, widget : QWidget):
+    def __init__(self, name : str, widget : QWidget, layout : QLayout = QVBoxLayout()):
         super().__init__()
-        # the 'file path' to this node
-        self.tree_path : str = ""
-        # the name of this node
+
         self.NAME = name
-        # the embeded widget
-        self.widget_socket : QWidget = widget
-        # the children of nodes by the node's name
+        self.tree_path = ""
         self._children = []
+        self._parent_layout = layout
         self._tree_ref = None
+        self.widget_socket = widget
+        self.socket_events = NodeItemEventFilter()
+        self.widget_socket.installEventFilter(self.socket_events)
+
+        # Expose this as the visible representation of this node
+    
+    def __getitem__(self, key : int):
+        return self._children[key]
     
     def send_event(self, target_path : str, data : list):
         QApplication.postEvent(self._tree_ref, EventTreeNodeEvent((id(self), target_path, data)))
@@ -57,11 +83,12 @@ class Node(QWidget):
         self._children.remove(child)
         return
     
-    # it would be better to implement the vistor pattern here
-    # however we cannot ensure types so its not worth it until i figure that out
-    def _add_child(self, node, tree):
+    # ensures a child is added correctly
+    def add_child(self, node, tree):
         node._tree_ref = tree
         node.tree_path = self.tree_path + "/" + node.NAME
+
+        self._parent_layout.addWidget(node.widget_socket)
         self._children.append(node)
     
     def get_children(self) -> list:
@@ -72,6 +99,24 @@ class Node(QWidget):
             if child.NAME == child_name:
                 return child
         return None
+    
+    def apply_layout(self, layout: QLayout):
+        if layout is None:
+            layout = QVBoxLayout()
+        
+        for child in self._children:
+            self._parent_layout.removeWidget(child.widget_socket)
+        
+        old_layout = self._parent_layout
+        old_layout.deleteLater
+        
+        self._parent_layout = layout
+        self.setLayout(self._parent_layout)
+        for child in self._children:
+            self._parent_layout.addWidget(child.widget_socket)
+        
+
+        self.setLayout(layout)
 
 
     def _receive_event_data(self, node_id, target_path, data):
@@ -80,16 +125,16 @@ class Node(QWidget):
 
 
 class EventTree(QWidget):
-    def __init__(self, root_widget : QWidget):
+    def __init__(self, root_widget : QWidget, root_layout : QLayout):
         super().__init__()
-        self.ROOT : Node = Node("root", root_widget) 
+        self.ROOT : Node = Node("root", root_widget, root_layout) 
         self.ROOT.tree_path = "root"
         self.ROOT._tree_ref = self
-
+    
     def add_node_to(self, node : Node, node_path : str):
         parent = self.get_node(node_path)
         if parent:
-            parent._add_child(node, self)
+            parent.add_child(node, self)
             return node
     
     def remove_node(self, node_path : str):
@@ -142,26 +187,3 @@ class EventTree(QWidget):
                 target._receive_event_data(e.sender_id, e.target_path, e.node_data)
             return True
         return super().event(e)
-
-
-    
-
-app = QApplication(sys.argv)
-
-tree = EventTree(QWidget())
-
-for i in range(0,10):
-    node1 = tree.add_node_to(Node("A"+str(i),QWidget()),"root")
-    for j in range(0,4):
-        node2 = tree.add_node_to(Node("B"+str(j),QWidget()), node1.tree_path)
-        for y in range(0,2):
-            node3 = tree.add_node_to(Node("C"+str(y),QWidget()), node2.tree_path)
-            if node3.tree_path == "root/A5/B3/C0":
-                sender = node3
-
-print(tree.ROOT)
-
-node3.on_node_event.connect(lambda x,y,z: print(x,y,z[0]))
-sender.send_event(node3.tree_path, ["hello world"])
-
-app.exec()
