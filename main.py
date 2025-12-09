@@ -16,19 +16,23 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("FFMPEG Wizard")
         tree = et.EventTree(QVBoxLayout())
+        box = DragBoxNode("box", QVBoxLayout())
+        scroll = ScrollNode("scroll", QVBoxLayout())
+        tree.add_child(scroll)
+        scroll.add_child(box)
+        self.make_box(box)
+        self.setCentralWidget(tree)
+        self.show()
 
-        # the weakeness is that we only go exactly one deep
-        # what if we simply add child node layouts to our own
-
-        # a node must display its widget
+    def make_box(self, box):
         for i in range(0,10):
             label = QLabel("Test"+str(i))
             label_layout = QHBoxLayout()
             label_layout.addWidget(label)
-            node = et.Node(label.text(), label_layout)
+            node = DraggableNode(label.text(), label_layout)
             node.socket_events.hovered.connect(lambda w: print("hover on" + w.NAME))
             node.socket_events.unhovered.connect(lambda w: print("hover off" + w.NAME))
-            tree.add_child(node)
+            box.add_child(node)
             for x in range(0,3):
                 label2 = QLabel("test"+str(x))
                 label2_layout = QVBoxLayout()
@@ -41,25 +45,70 @@ class MainWindow(QMainWindow):
                     label3_layout.addWidget(label3)
                     node3 = et.Node(label3.text(), label3_layout)
                     node2.add_child(node3)
- 
 
-        self.setCentralWidget(tree)
-        self.show()
+
+# make a box that lets me move a node from one to another
+
+class DraggableNode(et.Node):
+    def __init__(self, name : str, layout : QLayout):
+        super().__init__(name, layout)
+
+    def mouseMoveEvent(self, e):
+        if e.buttons() == Qt.MouseButton.LeftButton:
+            drag = QDrag(self)
+            mime = QMimeData()
+            drag.setMimeData(mime)
+            pixmap = QPixmap(self.size())
+            self.render(pixmap)
+            drag.setPixmap(pixmap)
+            drag.exec(Qt.DropAction.MoveAction)
+
+class DragBoxNode(et.Node):
+    def __init__(self, name : str, layout : QLayout):
+        super().__init__(name, layout)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        e.accept()
+    
+    def dropEvent(self, e):
+        pos = e.position()
+        widget = e.source()
+        self.internal_layout.removeWidget(widget)
+
+        for n in range(self.internal_layout.count()):
+            w = self.internal_layout.itemAt(n).widget()
+            if pos.y() < w.y() + w.size().height() // 2:
+                break
+            elif pos.x() < w.x() + w.size().width() // 2:
+                break
+        else:
+            n +=1
+        self.internal_layout.insertWidget(n, widget)
+        e.accept()
+
+
+class ScrollNode(et.Node):
+    def __init__(self, name: str, layout: QLayout):
+        super().__init__(name, layout)
+
+        self.container = QWidget()
+        self.container.setLayout(self.internal_layout)
+
+        # scroll setup
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.container)
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.scroll)
+        self.setLayout(self.main_layout)
 
 
 class InteractableListWidget(QWidget):
     def __init__(self):
         super().__init__()
 
-        # container inside scroll area
-        self.container = QWidget()
-        self.container_layout = QVBoxLayout()
-        self.container.setLayout(self.container_layout)
 
-        # scroll setup
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setWidget(self.container)
 
         # main layout
         self.main_layout = QVBoxLayout()
