@@ -36,34 +36,28 @@ class EventTreeNodeEvent(QEvent):
         super().__init__(EventTreeNodeEventType)
         self.sender_id, self.target_path, self.node_data = package
    
-# the issue is that the actual node widget wants to b able to 
-# render itself
-# we also need to pass a widget inside the socket
-# okay the widget is a container for the children
-    # but children will be other containers
-    # we need a node that is a container & a leaf?
 
-# the next node will use our socket
-# the node itself is made up of its children
-# however when its parent asks for it it retrieves our widget_socket
+# nodes are just extremely dynamic layouts!!!!!!
 class Node(QWidget):
     on_node_move = pyqtSignal(str, str)
     on_node_event = pyqtSignal(int, str, list)
 
-    def __init__(self, name : str, widget : QWidget, layout : QLayout = QVBoxLayout()):
+    def __init__(self, name : str, layout : QLayout):
         super().__init__()
+
+        if layout is None:
+            layout = QVBoxLayout()
 
         self.NAME = name
         self.tree_path = ""
-        self._children = []
-        self._parent_layout = layout
+        self._children : QWidget = []
         self._tree_ref = None
-        self.widget_socket = widget
         self.socket_events = NodeItemEventFilter()
-        self.widget_socket.installEventFilter(self.socket_events)
+        self.installEventFilter(self.socket_events)
 
-        # Expose this as the visible representation of this node
-    
+        self.internal_layout = layout
+        self.setLayout(self.internal_layout)
+
     def __getitem__(self, key : int):
         return self._children[key]
     
@@ -83,12 +77,11 @@ class Node(QWidget):
         self._children.remove(child)
         return
     
-    # ensures a child is added correctly
-    def add_child(self, node, tree):
-        node._tree_ref = tree
+    def add_child(self, node : QWidget):
+        node._tree_ref = self._tree_ref
         node.tree_path = self.tree_path + "/" + node.NAME
 
-        self._parent_layout.addWidget(node.widget_socket)
+        self.internal_layout.addWidget(node)
         self._children.append(node)
     
     def get_children(self) -> list:
@@ -100,36 +93,16 @@ class Node(QWidget):
                 return child
         return None
     
-    def apply_layout(self, layout: QLayout):
-        if layout is None:
-            layout = QVBoxLayout()
-        
-        for child in self._children:
-            self._parent_layout.removeWidget(child.widget_socket)
-        
-        old_layout = self._parent_layout
-        old_layout.deleteLater
-        
-        self._parent_layout = layout
-        self.setLayout(self._parent_layout)
-        for child in self._children:
-            self._parent_layout.addWidget(child.widget_socket)
-        
-
-        self.setLayout(layout)
-
-
     def _receive_event_data(self, node_id, target_path, data):
         self.on_node_event.emit(node_id, target_path, data)
     
 
 
-class EventTree(QWidget):
-    def __init__(self, root_widget : QWidget, root_layout : QLayout):
-        super().__init__()
-        self.ROOT : Node = Node("root", root_widget, root_layout) 
-        self.ROOT.tree_path = "root"
-        self.ROOT._tree_ref = self
+class EventTree(Node):
+    def __init__(self, root_layout : QLayout):
+        super().__init__("root", root_layout)
+        self.tree_path = "root"
+        self._tree_ref = self
     
     def add_node_to(self, node : Node, node_path : str):
         parent = self.get_node(node_path)
@@ -144,7 +117,7 @@ class EventTree(QWidget):
         child.remove_from_tree()
 
     def get_node(self, node_path : str) -> Node:
-        return self._get_node(self.ROOT, node_path)
+        return self._get_node(self, node_path)
 
     def _get_node(self, current_node: Node, destination_path: str) -> Node:
         # If we found the exact node
