@@ -74,9 +74,17 @@ class Node(QWidget):
     def has_child(self, child):
         for x in self._children:
             if x.name == child.name:
-                return True 
+                if x is child:
+                    return True 
         return False
     
+    def remove_self(self):
+        parent_path = self.tree_path.removesuffix("/"+self.name)
+        parent = self._tree_ref.get_node(parent_path)
+        for child in self._children:
+            self.remove_child(child)
+        parent.remove_child(self)
+
     def remove_child(self, child):
         if self.has_child(child):
             self._children.remove(child)

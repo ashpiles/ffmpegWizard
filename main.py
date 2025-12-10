@@ -109,6 +109,14 @@ class DragBoxNode(et.Node):
     def dropEvent(self, e):
         pos = e.position()
         widget = e.source()
+        if type(widget) is FlagNode:
+            widget.deleteLater()
+            widget.remove_self()
+            e.accept()
+            return
+        elif type(widget) is CommandNode:
+            e.accept()
+            return
         self.remove_child(widget)
 
         n = 0
@@ -158,8 +166,7 @@ class CommandNode(DraggableNode):
         pos = e.position()
         widget = e.source()
         on_self = self.has_child(widget)
-        if on_self:
-            self.remove_child(widget)
+        self.remove_child(widget)
         
 
         n = 0
@@ -178,7 +185,6 @@ class CommandNode(DraggableNode):
             # make a flag factory
             # get the current info and send over a new node with relevant info
 
-        print(type(widget))
         e.accept()
 
 
