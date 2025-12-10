@@ -1,22 +1,22 @@
 {
-    "commands" : { 
+    "commands":{
         "test_cmd":[
             {
-                "flag" : "-i",
-                "input": ""
+                "flag":"-i",
+                "input":""
             },
             {
-                "flag" : " ",
-                "input": ""
+                "flag":"",
+                "input":""
             }
         ]
     },
-    "flags" : {
-        "-i" : {
-            "tool_tip": "uses any video format"
+    "flags":{
+        "-i":{
+            "tool_tip":"uses any video format"
         },
-        " " : {
-            "tool_tip": "output is always the last flag"
+        "":{
+            "tool_tip":"output is always the last flag"
         }
     }
 }

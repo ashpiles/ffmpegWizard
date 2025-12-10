@@ -1,20 +1,23 @@
 
 import sys
-import wizard_util as util
 import re
+import json_processor as jp
 import event_tree as et
 from enum import Enum
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-processor = util.processor
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FFMPEG Wizard")
+        jp.processor.get_command("test_cmd")
+        parser = jp.CmdParser(r"""ffmpeg -protocol_whitelist "file,http,https,tcp,tls" -i "path_to_playlist.m3u8" -c copy -bsf:a aac_adtstoasc out.mp4""")
+        jp.processor.add_command("test2", parser.get_cmd())
+        print(jp.processor.get_command("test2"))
+        jp.processor.remove_command("test2")
         tree = et.EventTree(QHBoxLayout())
         box = DragBoxNode("box", QVBoxLayout())
         box1 = DragBoxNode("box1", QVBoxLayout())

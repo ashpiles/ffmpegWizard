@@ -1,5 +1,4 @@
 import sys
-import wizard_util as util
 import re
 from enum import Enum
 from PyQt6.QtWidgets import *
