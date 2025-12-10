@@ -1,5 +1,6 @@
 import sys
 import re
+import copy
 import json_processor as jp
 import event_tree as et
 from enum import Enum
@@ -49,13 +50,17 @@ class MainWindow(QMainWindow):
         flags = jp.processor.get_all_data()["flags"]
         for pair in flags.items():
             flag, flag_data = pair 
-            if flag == "":
-                label = QLabel("out")
-            else:
-                label = QLabel(flag)
-            flag_layout = QGridLayout()
-            flag_layout.addWidget(label)
-            node.add_child(DraggableNode(flag,flag_layout))
+            node.add_child(make_flag(flag, flag_data))
+
+def make_flag(flag, value):
+    if flag is "":
+        flag = "out"
+    label = QLabel(flag)
+    flag_layout = QVBoxLayout()
+    flag_layout.addWidget(label)
+    node = FlagNode(flag, flag_layout)
+    return node
+
 
 # now we need to detect when are moving to a different part of the tree
 # when a node is empty it is removed
@@ -64,7 +69,9 @@ class MainWindow(QMainWindow):
 #[X] keep drag box alive when empty
 #[X] have nodes move in the tree when dragged
 #[X] implement JSON parsing
-
+#[ ] command zone
+# - can re arrange / edit flags
+# -   
 #[ ] flag palet
     #[ ] creating a flagnode
 # - flag is a stacklayer
@@ -74,10 +81,7 @@ class MainWindow(QMainWindow):
 # - vbox with a hbox for buttons that switch the stacked widget
 # - the cmd palet is a dragbox made of cmd draggables & flag draggables
 #[ ] highlight on hover
-#[ ] command zone
-# - a box that scales with the window !last!
-# - orders commands to wrap around the box
-# - can re arrange / edit flags
+
 
 
 class DraggableNode(et.Node):
@@ -106,7 +110,6 @@ class DragBoxNode(et.Node):
         pos = e.position()
         widget = e.source()
         self.remove_child(widget)
-        
 
         n = 0
         for n in range(self.internal_layout.count()):
@@ -136,24 +139,17 @@ class ScrollNode(et.Node):
         self.main_layout.addWidget(self.scroll)
         self.setLayout(self.main_layout)
 
-
+class FlagNode(DraggableNode):
+    def __init__(self, name, layout):
+        self.flag = name
+        self.value = []
+        super().__init__(name, layout)
     
 class CommandNode(DraggableNode):
     def __init__(self, name, layout ):
         super().__init__(name, layout)
         self.setAcceptDrops(True)
 
-    # paths are unique so this is required for multiple of the same flag
-    def add_child(self, node, at = -1):
-        if self.has_child(node):
-            digit_match = re.findall(r"(?<=\.)(\d*)$", node.name)
-            num = digit_match[0]
-            if num != "":
-                num = int(num)+1
-            else:
-                num = 0
-            node.name = node.name+"."+str(num)
-        return super().add_child(node, at)
     
     def dragEnterEvent(self, e):
         e.accept()
@@ -161,7 +157,9 @@ class CommandNode(DraggableNode):
     def dropEvent(self, e):
         pos = e.position()
         widget = e.source()
-        self.remove_child(widget)
+        on_self = self.has_child(widget)
+        if on_self:
+            self.remove_child(widget)
         
 
         n = 0
@@ -173,7 +171,14 @@ class CommandNode(DraggableNode):
                 break
         else:
             n +=1
-        self.add_child(widget, n)
+        if on_self:
+            self.add_child(widget, n)
+        elif type(widget) == FlagNode:
+            self.add_child(make_flag(widget.flag, widget.value))
+            # make a flag factory
+            # get the current info and send over a new node with relevant info
+
+        print(type(widget))
         e.accept()
 
 

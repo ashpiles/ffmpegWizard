@@ -76,7 +76,6 @@ class Node(QWidget):
             if x.name == child.name:
                 return True 
         return False
-
     
     def remove_child(self, child):
         if self.has_child(child):
@@ -84,6 +83,14 @@ class Node(QWidget):
         return child
     
     def add_child(self, node : QWidget, at = -1):
+        # Ensure every path is unique
+        digit_match = re.findall(r"(?<=\.)(\d*)$", node.name)
+        num = 0 
+        if digit_match:
+            num = digit_match[0]
+            num = int(num)+1
+        node.name = node.name+"."+str(num)
+
         node._tree_ref = self._tree_ref
         node.tree_path = self.tree_path + "/" + node.name
 
