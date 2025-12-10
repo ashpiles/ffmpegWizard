@@ -15,17 +15,25 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FFMPEG Wizard")
-        tree = et.EventTree(QVBoxLayout())
+        tree = et.EventTree(QHBoxLayout())
         box = DragBoxNode("box", QVBoxLayout())
+        box1 = DragBoxNode("box1", QVBoxLayout())
+
         scroll = ScrollNode("scroll", QVBoxLayout())
+        scroll1 = ScrollNode("scroll1", QVBoxLayout())
         tree.add_child(scroll)
+        tree.add_child(scroll1)
         scroll.add_child(box)
+        scroll1.add_child(box1)
+
         self.make_box(box)
+        self.make_box(box1)
+
         self.setCentralWidget(tree)
         self.show()
 
     def make_box(self, box):
-        for i in range(0,10):
+        for i in range(0,1):
             label = QLabel("Test"+str(i))
             label_layout = QHBoxLayout()
             label_layout.addWidget(label)
@@ -47,7 +55,28 @@ class MainWindow(QMainWindow):
                     node2.add_child(node3)
 
 
-# make a box that lets me move a node from one to another
+# now we need to detect when are moving to a different part of the tree
+# when a node is empty it is removed
+# if i drag out all the draggable nodes make sure the drag box still lives
+
+#[X] keep drag box alive when empty
+#[X] have nodes move in the tree when dragged
+#[ ] implement JSON parsing
+#[ ] make a flag node button
+#[ ] flag palet
+# - creating a flagnode
+# - flag is a stacklayer
+# - switch to input on db click
+# - the move function should handle this completely
+#[ ] command palet
+# - vbox with a hbox for buttons that switch the stacked widget
+# - the cmd palet is a dragbox made of cmd draggables & flag draggables
+#[ ] highlight on hover
+#[ ] command zone
+# - a box that scales with the window !last!
+# - orders commands to wrap around the box
+# - can re arrange / edit flags
+
 
 class DraggableNode(et.Node):
     def __init__(self, name : str, layout : QLayout):
@@ -74,8 +103,10 @@ class DragBoxNode(et.Node):
     def dropEvent(self, e):
         pos = e.position()
         widget = e.source()
-        self.internal_layout.removeWidget(widget)
+        self.remove_child(widget)
+        
 
+        n = 0
         for n in range(self.internal_layout.count()):
             w = self.internal_layout.itemAt(n).widget()
             if pos.y() < w.y() + w.size().height() // 2:
@@ -84,7 +115,7 @@ class DragBoxNode(et.Node):
                 break
         else:
             n +=1
-        self.internal_layout.insertWidget(n, widget)
+        self.add_child(widget, n)
         e.accept()
 
 

@@ -1,24 +1,22 @@
 {
-    "test_cmd":{
-        "-i":"in1.mp4",
-        "-c":"[copy flag]",
-        "-map":"[map value]",
-        "-shortest":"out.mp4"
+    "commands" : { 
+        "test_cmd":[
+            {
+                "flag" : "-i",
+                "input": ""
+            },
+            {
+                "flag" : " ",
+                "input": ""
+            }
+        ]
     },
-    "High-quality encoding":{
-        "-i":"in.mp4",
-        "-preset":"slower",
-        "-crf":"18",
-        "out":"out.mp4"
-    },
-    "Basic Conversion":{
-        "-i":"in.mp4",
-        "out":"out.avi"
-    },
-    "New Command":{
-        "-i":"in1.mp4",
-        "-c":"test[copy_flag]",
-        "-map":"[map_value]ing",
-        "-shortest":"out.mp4"
+    "flags" : {
+        "-i" : {
+            "tool_tip": "uses any video format"
+        },
+        " " : {
+            "tool_tip": "output is always the last flag"
+        }
     }
 }

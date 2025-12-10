@@ -70,18 +70,21 @@ class Node(QWidget):
         from_path, to_path = move_request()
         self.on_node_move.emit(from_path, to_path)
     
-    def remove_child(self, child_name : str):
-        child = self.get_child(child_name)
-        child._children = []
-        child.destroy(True, True)
-        self._children.remove(child)
-        return
+    def remove_child(self, child):
+        for x in self._children:
+            if x == child.NAME:
+                self._children.remove(child)
+        return child
     
-    def add_child(self, node : QWidget):
+    def add_child(self, node : QWidget, at : int = -1):
         node._tree_ref = self._tree_ref
         node.tree_path = self.tree_path + "/" + node.NAME
 
-        self.internal_layout.addWidget(node)
+        if at < 0:
+            self.internal_layout.insertWidget(at, node)
+        else:
+            self.internal_layout.addWidget(node)
+
         self._children.append(node)
     
     def get_children(self) -> list:
