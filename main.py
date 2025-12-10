@@ -1,4 +1,3 @@
-
 import sys
 import re
 import json_processor as jp
@@ -13,50 +12,50 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FFMPEG Wizard")
-        jp.processor.get_command("test_cmd")
-        parser = jp.CmdParser(r"""ffmpeg -protocol_whitelist "file,http,https,tcp,tls" -i "path_to_playlist.m3u8" -c copy -bsf:a aac_adtstoasc out.mp4""")
-        jp.processor.add_command("test2", parser.get_cmd())
-        print(jp.processor.get_command("test2"))
-        jp.processor.remove_command("test2")
-        tree = et.EventTree(QHBoxLayout())
-        box = DragBoxNode("box", QVBoxLayout())
-        box1 = DragBoxNode("box1", QVBoxLayout())
+        main_layout = QGridLayout()
+        side_bar_layout = QVBoxLayout()
+        tree = et.EventTree(main_layout)
+        side_bar = et.Node("left_side_bar", side_bar_layout)
+        side_bar_toolbar = et.Node("toolbar", QHBoxLayout())
+        flag_palet_con = ScrollNode("scroll", QVBoxLayout())
+        flag_palet = DragBoxNode("box", QVBoxLayout())
 
-        scroll = ScrollNode("scroll", QVBoxLayout())
-        scroll1 = ScrollNode("scroll1", QVBoxLayout())
-        tree.add_child(scroll)
-        tree.add_child(scroll1)
-        scroll.add_child(box)
-        scroll1.add_child(box1)
+        tree.add_child(side_bar,(0,0))
 
-        self.make_box(box)
-        self.make_box(box1)
+        # Side Bar
+        #----------------------------------
+        side_bar.add_child(side_bar_toolbar)
+        side_bar.add_child(flag_palet_con)
+        side_bar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        side_bar_toolbar.internal_layout.addWidget(QPushButton("Flags"))
+        side_bar_toolbar.internal_layout.addWidget(QPushButton("Commands"))
+        flag_palet_con.add_child(flag_palet)
+        self.make_flag_pallet(flag_palet)
+
+        # Command Zone
+        command_zone = DragBoxNode("command_zone", QVBoxLayout())
+        command_zone.setStyleSheet("background-color: #262626")
+        tree.add_child(command_zone,(0,1))
+        command_layout = QHBoxLayout()
+        current_cmd = CommandNode("current_command", command_layout)
+        command_zone.add_child(current_cmd)
+        command_layout.setContentsMargins(20,20,20,20)
+        command_layout.setSpacing(2)
 
         self.setCentralWidget(tree)
         self.show()
-
-    def make_box(self, box):
-        for i in range(0,1):
-            label = QLabel("Test"+str(i))
-            label_layout = QHBoxLayout()
-            label_layout.addWidget(label)
-            node = DraggableNode(label.text(), label_layout)
-            node.socket_events.hovered.connect(lambda w: print("hover on" + w.NAME))
-            node.socket_events.unhovered.connect(lambda w: print("hover off" + w.NAME))
-            box.add_child(node)
-            for x in range(0,3):
-                label2 = QLabel("test"+str(x))
-                label2_layout = QVBoxLayout()
-                label2_layout.addWidget(label2)
-                node2 = et.Node(label2.text(), label2_layout)
-                node.add_child(node2)
-                for y in range(0,2):
-                    label3 = QLabel("t"+str(y))
-                    label3_layout = QGridLayout()
-                    label3_layout.addWidget(label3)
-                    node3 = et.Node(label3.text(), label3_layout)
-                    node2.add_child(node3)
-
+    
+    def make_flag_pallet(self, node : et.Node):
+        flags = jp.processor.get_all_data()["flags"]
+        for pair in flags.items():
+            flag, flag_data = pair 
+            if flag == "":
+                label = QLabel("out")
+            else:
+                label = QLabel(flag)
+            flag_layout = QGridLayout()
+            flag_layout.addWidget(label)
+            node.add_child(DraggableNode(flag,flag_layout))
 
 # now we need to detect when are moving to a different part of the tree
 # when a node is empty it is removed
@@ -64,10 +63,10 @@ class MainWindow(QMainWindow):
 
 #[X] keep drag box alive when empty
 #[X] have nodes move in the tree when dragged
-#[ ] implement JSON parsing
-#[ ] make a flag node button
+#[X] implement JSON parsing
+
 #[ ] flag palet
-# - creating a flagnode
+    #[ ] creating a flagnode
 # - flag is a stacklayer
 # - switch to input on db click
 # - the move function should handle this completely
@@ -138,37 +137,46 @@ class ScrollNode(et.Node):
         self.setLayout(self.main_layout)
 
 
-class InteractableListWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-
-
-
-        # main layout
-        self.main_layout = QVBoxLayout()
-        self.main_layout.addWidget(self.scroll)
-        self.setLayout(self.main_layout)
-
-        # tree, but DON'T give it control of container layout!
-        self._tree = et.EventTree(self.container, self.container_layout)
-
-        self.show()
-
-    # All i need to do is set the children as part of the layout
-
-    def get_root(self):
-        return self._tree.ROOT
     
-    def add_to(self, node : et.Node, parent : et.Node):
-        parent.add_child(node, self._tree)
+class CommandNode(DraggableNode):
+    def __init__(self, name, layout ):
+        super().__init__(name, layout)
+        self.setAcceptDrops(True)
 
-    def add_to_path(self, node : et.Node, path : str):
-        parent = self._tree.get_node(path)
-        if parent:
-            parent.add_child(node,self._tree)
+    # paths are unique so this is required for multiple of the same flag
+    def add_child(self, node, at = -1):
+        if self.has_child(node):
+            digit_match = re.findall(r"(?<=\.)(\d*)$", node.name)
+            num = digit_match[0]
+            if num != "":
+                num = int(num)+1
+            else:
+                num = 0
+            node.name = node.name+"."+str(num)
+        return super().add_child(node, at)
     
-    # i have to create a hover & click on event
-    # also i need to see if the add works
+    def dragEnterEvent(self, e):
+        e.accept()
+    
+    def dropEvent(self, e):
+        pos = e.position()
+        widget = e.source()
+        self.remove_child(widget)
+        
+
+        n = 0
+        for n in range(self.internal_layout.count()):
+            w = self.internal_layout.itemAt(n).widget()
+            if pos.y() < w.y() + w.size().height() // 2:
+                break
+            elif pos.x() < w.x() + w.size().width() // 2:
+                break
+        else:
+            n +=1
+        self.add_child(widget, n)
+        e.accept()
+
+
 
 app = QApplication(sys.argv)
 

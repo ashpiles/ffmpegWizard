@@ -28,20 +28,20 @@ class JsonProcessor():
         f = open("ffmpeg_cmd_list.json","a")
         f.close()
 
-    def _get_all_data(self):
+    def get_all_data(self):
         with open("ffmpeg_cmd_list.json", "r") as f:
             data = json.load(f)
         return data
 
     def get_command(self, name : str) -> dict:
-        return self._get_all_data()["commands"][name]
+        return self.get_all_data()["commands"][name]
     
     def get_flag(self, name : str) -> dict:
-        return self._get_all_data()["flags"][name]
+        return self.get_all_data()["flags"][name]
     
     def add_flag(self, name:str, flag:str, tool_tip:str = ""):
         try:
-            data = self._get_all_data()
+            data = self.get_all_data()
         except json.JSONDecodeError:
             data = {}
         data["flags"][name] = {"flag":flag,"tool_tip":tool_tip}
@@ -52,7 +52,7 @@ class JsonProcessor():
     def add_command(self, name:str, cmd:str):
         parser = CmdParser(cmd)
         try:
-            data = self._get_all_data()
+            data = self.get_all_data()
         except json.JSONDecodeError:
             data = {}
         data["commands"][name] = parser.flags
@@ -62,7 +62,7 @@ class JsonProcessor():
 
     def remove_flag(self, name : str):
         try:
-            data = self._get_all_data()
+            data = self.get_all_data()
         except json.JSONDecodeError:
             data = {}
         data["flags"].pop(name)
@@ -72,7 +72,7 @@ class JsonProcessor():
 
     def remove_command(self, name : str):
         try:
-            data = self._get_all_data()
+            data = self.get_all_data()
         except json.JSONDecodeError:
             data = {}
         data["commands"].pop(name)

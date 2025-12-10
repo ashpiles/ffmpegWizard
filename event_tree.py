@@ -47,13 +47,15 @@ class Node(QWidget):
         if layout is None:
             layout = QVBoxLayout()
 
-        self.NAME = name
+        self.name = name
         self.tree_path = ""
         self._children : QWidget = []
         self._tree_ref = None
         self.socket_events = NodeItemEventFilter()
         self.installEventFilter(self.socket_events)
 
+        layout.setContentsMargins(0,0,0,0)
+        layout.setSpacing(0)
         self.internal_layout = layout
         self.setLayout(self.internal_layout)
 
@@ -69,17 +71,26 @@ class Node(QWidget):
         from_path, to_path = move_request()
         self.on_node_move.emit(from_path, to_path)
     
-    def remove_child(self, child):
+    def has_child(self, child):
         for x in self._children:
-            if x == child.NAME:
-                self._children.remove(child)
+            if x.name == child.name:
+                return True 
+        return False
+
+    
+    def remove_child(self, child):
+        if self.has_child(child):
+            self._children.remove(child)
         return child
     
-    def add_child(self, node : QWidget, at : int = -1):
+    def add_child(self, node : QWidget, at = -1):
         node._tree_ref = self._tree_ref
-        node.tree_path = self.tree_path + "/" + node.NAME
+        node.tree_path = self.tree_path + "/" + node.name
 
-        if at < 0:
+        if type(self.internal_layout) is type(QGridLayout()):
+            x,y = at
+            self.internal_layout.addWidget(node,x,y)
+        elif type(at) is type(int) and at >= 0:
             self.internal_layout.insertWidget(at, node)
         else:
             self.internal_layout.addWidget(node)
@@ -91,7 +102,7 @@ class Node(QWidget):
     
     def get_child(self, child_name: str):
         for child in self._children:
-            if child.NAME == child_name:
+            if child.name == child_name:
                 return child
         return None
     
