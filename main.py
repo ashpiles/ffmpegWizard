@@ -28,6 +28,8 @@ class MainWindow(QMainWindow):
         self.command_button = QPushButton("Commands")
         self.current_button = "Commands"
 
+        self.add_cmd_window = None
+
 
         # Side Bar
         #----------------------------------
@@ -52,6 +54,7 @@ class MainWindow(QMainWindow):
         self.flag_pallet.internal_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.flag_pallet.internal_layout.setSpacing(2)
         self.make_flag_pallet(self.flag_pallet)
+        self.make_command_pallet(self.command_pallet)
 
 
 
@@ -60,20 +63,31 @@ class MainWindow(QMainWindow):
         command_zone_scroll.add_child(command_zone)
         command_zone.setStyleSheet("background-color: #262626")
         tree.add_child(command_zone_scroll,(0,1))
+
+
         end_row = QVBoxLayout()
         end_row_spacer = QSpacerItem(0, 40)
         end_row.setAlignment(Qt.AlignmentFlag.AlignBottom)
         run_button = QPushButton()
+        add_cmd_button = QPushButton()
+        add_cmd_button.setText("Add Command")
+
+        def add_window():
+            self.add_cmd_window = AddCmdWindow()
+            self.add_cmd_window.command_added.connect(lambda name, cmd : self.command_pallet.add_child(make_command(name,cmd)))
+
+
+        add_cmd_button.clicked.connect(add_window)
         run_button.setText("Run")
-        end_row.addWidget(run_button)
+        end_row.addWidget(add_cmd_button)
         end_row.addSpacerItem(end_row_spacer)
+        end_row.addWidget(run_button)
 
         tree.add_child(et.Node("end_row", end_row),(0,2))
         current_cmd = make_command("current_command", r"ffmpeg -i in.mp4 -itsoffset 3.84 -i in.mp4 -map 0:v -map 1:a -vcodec copy -acodec copy out.mp4", False)
         command_zone.add_child(current_cmd)
         current_cmd.internal_layout.setContentsMargins(20,20,20,20)
         current_cmd.internal_layout.setSpacing(1)
-        current_cmd.internal_layout.setAlignment
 
         self.setCentralWidget(tree)
         self.show()
@@ -96,6 +110,15 @@ class MainWindow(QMainWindow):
 
 
 
+    def make_command_pallet(self, node : et.Node):
+        commands = jp.processor.get_all_data()["commands"]
+        cmd = "ffmpeg"
+        for c in commands.items():
+            name = c[0]
+            for f, v in c[1]:
+                cmd += " " + f + " " + v
+            node.add_child(make_command(name, cmd))
+
     
     def make_flag_pallet(self, node : et.Node):
         flags = jp.processor.get_all_data()["flags"]
@@ -103,16 +126,75 @@ class MainWindow(QMainWindow):
             flag, flag_data = pair
             node.add_child(make_flag(flag, flag_data))
 
+
+class AddCmdWindow(QWidget):
+    command_added = pyqtSignal(str,str)
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+
+
+        name_box = QTextEdit("Command Name")
+        name_box.setMaximumHeight(30)
+        name_box.setMaximumWidth(180)
+        name_box.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        self.name_edit_text = name_box
+
+        edit_box = QTextEdit("ffmpeg -i in.mkv out.mp4")
+        edit_box.setMaximumHeight(45)
+        edit_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        self.cmd_edit_text = edit_box
+
+        push_button = QPushButton()
+        push_button.setText("Add Command")
+        push_button.setMaximumHeight(50)
+        push_button.setMaximumWidth(100)
+        push_button.clicked.connect(self.on_click)
+
+        layout.addWidget(name_box)
+        layout.addWidget(edit_box)
+        layout.addWidget(push_button)
+
+        self.setLayout(layout)
+        self.show()
+     
+    def on_click(self):
+        name = self.name_edit_text.toPlainText()
+        cmd = self.cmd_edit_text.toPlainText()
+        jp.processor.add_command(name, cmd)
+        self.command_added.emit(name,cmd)
+
+
 def make_command(name, cmd, front = True):
     node = CommandNode(name, cmd)
-    container = et.Node("command_container", QHBoxLayout())
-    ffmpeg_label = QLabel("ffmpeg")
-    ffmpeg_label.setFixedSize(60,30)
-    ffmpeg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    ffmpeg_label.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Fixed)
-    container.internal_layout.addWidget(ffmpeg_label)
+    container = DraggableNode("command_container", QHBoxLayout())
+    label = QLabel("")
+
+    if not front:
+        label.setText("ffmpeg")
+        label.setFixedSize(60,30)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Fixed)
+        container.internal_layout.addWidget(label)
+        container.add_child(node)
+        node.add_child(make_flag("-i", "", front))
+        return container 
+
+    label.setText(name)
+    label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    label.setContentsMargins(5,0,5,0)
+    label_font = QFont()
+    label_font.setBold(True)
+    label.setFont(label_font)
+    label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    container.internal_layout.addWidget(label)
     container.add_child(node)
-    node.add_child(make_flag("-i", "", front))
+    container.setStyleSheet("background-color: #2f2f30")
+
+
+
     return container
 
 def make_flag(flag, value, front = True):
@@ -163,19 +245,12 @@ def make_flag(flag, value, front = True):
 
     return node
 
-#[X] Command Tab
-#[ ] Command pallet
-#[ ] Drag and drop commands
-# - dragging a cmd into pallet adds
-# - draggin a cmd into zone adds all flags
-#[ ] Command Zone dbl click on flag to switch to input
-#[ ] Add command window
-#[ ] clear command zone
-#[ ] Command Zone scroll area
-# - turn it into a grid box
-#[ ] formatting command zone
-#[ ] Run Button
-#[ ] in & out buttons
+#[ ] add command window
+#[ ] fill command pallet
+#[ ] command drag to cmd pallet
+#[ ] double click on flag to get input otherwise show input if there is one
+#[ ] input / output button
+#[ ] run button
 
 # Source - https://stackoverflow.com/a
 # Posted by musicamante, modified by community. See post 'Timeline' for change history
