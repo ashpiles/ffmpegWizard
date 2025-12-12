@@ -37,8 +37,10 @@ class EventTreeNodeEvent(QEvent):
    
 
 # nodes are just extremely dynamic layouts!!!!!!
+# TODO: add a make_me function that allows a dynamic factory func
+# - turning every node into its own factory
 class Node(QWidget):
-    on_node_move = pyqtSignal(str, str)
+    on_node_move = pyqtSignal(QWidget, QWidget)
     on_node_event = pyqtSignal(int, str, list)
 
     def __init__(self, name : str, layout : QLayout):
@@ -105,7 +107,7 @@ class Node(QWidget):
         if type(self.internal_layout) is type(QGridLayout()):
             x,y = at
             self.internal_layout.addWidget(node,x,y)
-        elif type(at) is type(int) and at >= 0:
+        elif type(at) is int and at >= 0:
             self.internal_layout.insertWidget(at, node)
         else:
             self.internal_layout.addWidget(node)

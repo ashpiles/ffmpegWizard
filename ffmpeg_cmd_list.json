@@ -17,6 +17,9 @@
         },
         "":{
             "tool_tip":"output is always the last flag"
-        }
+        },
+        "-preset" : {},
+        "-itsoffset" : {},
+        "-test_one_two_three_four" : {}
     }
 }
