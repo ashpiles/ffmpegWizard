@@ -1,7 +1,8 @@
 import sys
 import json_processor as jp
 import event_tree as et
-import copy
+import subprocess
+import re
 import flow_layout as fl
 from enum import Enum
 from PyQt6.QtWidgets import *
@@ -70,14 +71,16 @@ class MainWindow(QMainWindow):
 
         end_row = QVBoxLayout()
         end_row_spacer = QSpacerItem(0, 40)
-        end_row.setAlignment(Qt.AlignmentFlag.AlignBottom)
+        end_row.setAlignment(Qt.AlignmentFlag.AlignTop)
         run_button = QPushButton()
         add_cmd_button = QPushButton()
         add_cmd_button.setText("Add Command")
 
 
-        add_cmd_button.clicked.connect(self.add_command_window)
+        add_cmd_button.clicked.connect(lambda: self.add_command_window())
         run_button.setText("Run")
+        run_button.clicked.connect(lambda: run_command(current_cmd))
+        end_row.addSpacerItem(end_row_spacer)
         end_row.addWidget(add_cmd_button)
         end_row.addSpacerItem(end_row_spacer)
         end_row.addWidget(run_button)
@@ -120,9 +123,9 @@ class MainWindow(QMainWindow):
 
     def make_command_pallet(self, node : et.Node):
         commands = jp.processor.get_all_data()["commands"]
-        cmd = "ffmpeg"
         for c in commands.items():
             name = c[0]
+            cmd = "ffmpeg"
             for x in c[1]:
                 cmd += " " + x["flag"] + " " + x["input"] 
             command_node = make_command(name, cmd)
@@ -138,7 +141,7 @@ class MainWindow(QMainWindow):
 
 class AddCmdWindow(QWidget):
     command_added = pyqtSignal(str,str)
-    def __init__(self, name = "Command Name", cmd = "ffmpeg -i in.mkv out.mp4"):
+    def __init__(self, name, cmd ):
         super().__init__()
         layout = QVBoxLayout()
 
@@ -181,6 +184,12 @@ class AddCmdWindow(QWidget):
 def make_command(name, cmd, front = True):
     node = CommandNode(name, cmd)
     label = QLabel("")
+    label.setText(name)
+    label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    label.setContentsMargins(5,0,5,0)
+    label_font = QFont()
+    label_font.setBold(True)
+    label.setFont(label_font)
 
     if not front:
         label.setText("ffmpeg")
@@ -191,12 +200,6 @@ def make_command(name, cmd, front = True):
         node.internal_layout.setSpacing(3)
         return node 
 
-    label.setText(name)
-    label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-    label.setContentsMargins(5,0,5,0)
-    label_font = QFont()
-    label_font.setBold(True)
-    label.setFont(label_font)
     label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     node.internal_layout.addWidget(label)
     node.setStyleSheet("background-color: #2f2f30")
@@ -243,23 +246,31 @@ def make_flag(flag, value, front = True):
         flag_layout.addWidget(label)
         flag_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+        node.setStyleSheet("background-color: #2f2f30")
+        node.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     else:
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setFixedHeight(30)
         label.setMinimumWidth(80)
+
         flag_layout.addWidget(label)
         flag_layout.addWidget(input_box)
-
-    if front:
-        node.setStyleSheet("background-color: #2f2f30")
-        node.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    else:
-        node.doubleClicked.connect(lambda : input_box.setHidden(not input_box.isHidden()))
+        input_box.setHidden(True)
+        if flag == "out" or flag == "-i":
+            io_type = IODialogEnum.INFILE if flag == "-i" else IODialogEnum.OUTFILE
+            node.doubleClicked.connect(lambda: make_IO_dialog(node,io_type))
+        else:
+            node.doubleClicked.connect(lambda : input_box.setHidden(not input_box.isHidden()))
         node.setBaseSize(40,50)
         node.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
         node.setContentsMargins(10, 0, 10, 30)
 
     return node
+
+class IODialogEnum(Enum):
+    DIRECTORY = 1
+    INFILE = 2
+    OUTFILE = 3
 
 
 class DraggableNode(et.Node):
@@ -359,6 +370,18 @@ class CommandNode(DraggableNode):
             if type(widget) is FlagNode:
                 self.flags.append({"flag":widget.flag, "input":widget.input_value})
 
+    def flatten_flags(self):
+        self.update_flags()
+        args = ["ffmpeg"]
+        for f in self.flags:
+            flag = f["flag"] 
+            value = f["input"]
+            value = value.replace('"','')
+            if flag != "out":
+                args.append(flag)
+            args.append(value)
+        return args
+
     def replace_command(self, cmd_node):
         if self.name == "current_command.0":
             self.flags = []
@@ -413,6 +436,21 @@ class CommandNode(DraggableNode):
 
         e.accept()
 
+def make_IO_dialog(node : FlagNode, io_type):
+    match io_type:
+        case IODialogEnum.DIRECTORY:
+            node.input_value = QFileDialog.getExistingDirectory(node, "Select a Directory")
+        case IODialogEnum.INFILE:
+            file, _ = QFileDialog.getOpenFileName(node, "Select a File","","All Files (*)")
+            node.input_value = file
+        case IODialogEnum.OUTFILE:
+            file, _ = QFileDialog.getSaveFileName(node, "Save As", "", "Video Files (*.mp4);;All Files (*)")
+            node.input_value = file
+
+def run_command(command_node : CommandNode):
+    args = command_node.flatten_flags()
+    result = subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    print(result.stderr)
 
 app = QApplication(sys.argv)
 

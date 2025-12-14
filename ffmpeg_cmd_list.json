@@ -53,6 +53,20 @@
                 "flag":"-y",
                 "input":"out.mov"
             }
+        ],
+        "Rotate Video":[
+            {
+                "flag":"-i",
+                "input":"in.mov"
+            },
+            {
+                "flag":"-vf",
+                "input":"\"transpose=1\""
+            },
+            {
+                "flag":"",
+                "input":"out.mov"
+            }
         ]
     },
     "flags":{
