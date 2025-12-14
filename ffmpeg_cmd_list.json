@@ -1,25 +1,6 @@
 {
     "commands":{
-        "test_cmd":[
-            {
-                "flag":"-i",
-                "input":""
-            },
-            {
-                "flag":"",
-                "input":""
-            }
-        ],
-        "Command Name":[
-            {
-                "flag":"-i",
-                "input":"in.mkv"
-            },
-            {
-                "flag":"",
-                "input":"out.mp4"
-            }
-        ],
+
         "Remux":[
             {
                 "flag":"-i",

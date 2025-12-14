@@ -7,13 +7,14 @@ class CmdParser():
     def __init__(self, command : str):
         self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command) 
         self.flags = []
-        out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
-        out_flag,out_value = out_match[0]
-  
-        for match in self.raw_flag_matches:
-            self.flags.append({"flag":match[0],"input":match[1]})
-        if out_flag == '':
-            self.flags.append(({"flag":"","input":out_value}))
+        if command != "":
+            out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
+            out_flag,out_value = out_match[0]
+    
+            for match in self.raw_flag_matches:
+                self.flags.append({"flag":match[0],"input":match[1]})
+            if out_flag == '':
+                self.flags.append(({"flag":"","input":out_value}))
     
     def get_cmd(self):
         cmd = "ffmpeg"

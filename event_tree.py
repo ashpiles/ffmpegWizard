@@ -36,9 +36,6 @@ class EventTreeNodeEvent(QEvent):
         self.sender_id, self.target_path, self.node_data = package
    
 
-# nodes are just extremely dynamic layouts!!!!!!
-# TODO: add a make_me function that allows a dynamic factory func
-# - turning every node into its own factory
 class Node(QWidget):
     on_node_move = pyqtSignal(QWidget, QWidget)
     on_node_event = pyqtSignal(int, str, list)
@@ -63,6 +60,9 @@ class Node(QWidget):
 
     def __getitem__(self, key : int):
         return self._children[key]
+
+    def get_tree(self):
+        return self._tree_ref
     
     def send_event(self, target_path : str, data : list):
         QApplication.postEvent(self._tree_ref, EventTreeNodeEvent((id(self), target_path, data)))
@@ -89,8 +89,14 @@ class Node(QWidget):
 
     def remove_child(self, child):
         if self.has_child(child):
+            self.internal_layout.removeWidget(child)
             self._children.remove(child)
         return child
+    
+    def remove_all_children(self):
+        for i in range(len(self._children)):
+            child = self._children.pop(0)
+            self.internal_layout.removeWidget(child)
     
     def add_child(self, node : QWidget, at = -1):
         # Ensure every path is unique
@@ -163,7 +169,7 @@ class EventTree(Node):
         return None
 
      
-    def _get_sub_path(self, sub_path : str, main_path : str) -> str:
+    def get_sub_path(self, sub_path : str, main_path : str) -> str:
         if (sub_path is not None) & (main_path is not None):
             sub_path = re.match(r"(?:/|^)" + sub_path + r"(?=/|$)", main_path)
             if sub_path:
