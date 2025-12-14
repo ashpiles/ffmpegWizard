@@ -40,8 +40,8 @@ class MainWindow(QMainWindow):
         side_bar.add_child(side_bar_toolbar)
         side_bar.add_child(side_bar_scroll)
         side_bar_scroll.add_child(side_bar_content)
-        side_bar_content.add_child(self.flag_pallet)
         side_bar_content.add_child(self.command_pallet)
+        side_bar_content.add_child(self.flag_pallet)
 
         self.flag_button.setCheckable(True)
         self.command_button.setCheckable(True)
@@ -55,9 +55,10 @@ class MainWindow(QMainWindow):
 
         self.flag_pallet.internal_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.flag_pallet.internal_layout.setSpacing(2)
-        self.make_flag_pallet(self.flag_pallet)
-        self.make_command_pallet(self.command_pallet)
+        self.command_pallet.internal_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.command_pallet.internal_layout.setSpacing(2)
 
+        self.update_pallets()
 
 
         # Command Zone
@@ -74,13 +75,8 @@ class MainWindow(QMainWindow):
         add_cmd_button = QPushButton()
         add_cmd_button.setText("Add Command")
 
-        def add_window():
-            global add_cmd_window
-            add_cmd_window = AddCmdWindow()
-            self.add_cmd_window.command_added.connect(lambda name, cmd : self.command_pallet.add_child(make_command(name,cmd)))
 
-
-        add_cmd_button.clicked.connect(add_window)
+        add_cmd_button.clicked.connect(self.add_command_window)
         run_button.setText("Run")
         end_row.addWidget(add_cmd_button)
         end_row.addSpacerItem(end_row_spacer)
@@ -92,7 +88,20 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(tree)
         self.show()
+
+    def add_command_window(self,  name = "Command Name", cmd = "ffmpeg -i in.mkv out.mp4"):
+        global add_cmd_window
+        add_cmd_window = AddCmdWindow(name, cmd)
+        add_cmd_window.command_added.connect(self.update_pallets)
+
+
+    def update_pallets(self):
+        self.flag_pallet.remove_all_children()
+        self.command_pallet.remove_all_children()
+        self.make_flag_pallet(self.flag_pallet)
+        self.make_command_pallet(self.command_pallet)
     
+
     def switch_side_bar(self, button):
         match self.current_button:
             case "Commands":
@@ -107,8 +116,6 @@ class MainWindow(QMainWindow):
                 self.toggle_layout.setCurrentWidget(self.command_pallet)
             case default:
                 pass
-
-
 
 
     def make_command_pallet(self, node : et.Node):
@@ -164,7 +171,10 @@ class AddCmdWindow(QWidget):
     def on_click(self):
         name = self.name_edit_text.toPlainText()
         cmd = self.cmd_edit_text.toPlainText()
+        flags = jp.CmdParser(cmd).flags
         jp.processor.add_command(name, cmd)
+        for f in flags:
+            jp.processor.add_flag(f["flag"])
         self.command_added.emit(name,cmd)
 
 
@@ -190,6 +200,7 @@ def make_command(name, cmd, front = True):
     label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     node.internal_layout.addWidget(label)
     node.setStyleSheet("background-color: #2f2f30")
+    node.setAcceptDrops(False)
     return node 
 
 
@@ -197,6 +208,7 @@ def make_flag(flag, value, front = True):
     if flag == "":
         flag = "out"
     flag_layout = QVBoxLayout()
+    node = FlagNode(flag, value, flag_layout)
 
     label = QLabel(flag)
     label_font = QFont()
@@ -208,7 +220,7 @@ def make_flag(flag, value, front = True):
     if type(value) is str:
         input_box.setText(value)
     input_box.setFixedSize(80,30)
-    def autoResize():
+    def updateEditText():
         width = input_box.width()
         height = input_box.height()
         str_len = len(input_box.toPlainText())
@@ -218,9 +230,10 @@ def make_flag(flag, value, front = True):
         height = 30 if str_len <= len_cap*2 else 60
         input_box.setFixedWidth(width)
         input_box.setFixedHeight(height)
+        node.input_value = input_box.toPlainText()
 
-    autoResize()
-    input_box.textChanged.connect(autoResize)
+    updateEditText()
+    input_box.textChanged.connect(updateEditText)
 
     if front:
         label.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -237,8 +250,6 @@ def make_flag(flag, value, front = True):
         flag_layout.addWidget(label)
         flag_layout.addWidget(input_box)
 
-
-    node = FlagNode(flag, flag_layout)
     if front:
         node.setStyleSheet("background-color: #2f2f30")
         node.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -281,7 +292,9 @@ class DragBoxNode(et.Node):
             widget.remove_self()
             e.accept()
             return
-        elif type(widget) is CommandNode:
+        elif not self.has_child(widget) and type(widget) is CommandNode:
+            widget.update_flags()
+            window.add_command_window(widget.name, jp.toCommand(widget.flags))
             e.accept()
             return
         self.remove_child(widget)
@@ -316,10 +329,9 @@ class ScrollNode(et.Node):
 
 class FlagNode(DraggableNode):
     doubleClicked = pyqtSignal()
-    def __init__(self, name, layout):
+    def __init__(self, name, input_value, layout):
         self.flag = name
-        self.command_pos = (0,0)
-        self.value = []
+        self.input_value = input_value
         super().__init__(name, layout)
     
 
@@ -327,7 +339,6 @@ class FlagNode(DraggableNode):
         if e.button() == e.buttons().LeftButton:
             self.doubleClicked.emit()
         return super().mouseDoubleClickEvent(e)
-
 
 
 class CommandNode(DraggableNode):
@@ -338,19 +349,27 @@ class CommandNode(DraggableNode):
         self.flags = parser.flags
         self.cmd = cmd
 
+    def update_flags(self):
+        self.flags = []
+        for n in range(self.internal_layout.count()):
+            w = self.internal_layout.itemAt(n)
+            if w is None:
+                return
+            widget = w.widget()
+            if type(widget) is FlagNode:
+                self.flags.append({"flag":widget.flag, "input":widget.input_value})
+
     def replace_command(self, cmd_node):
         if self.name == "current_command.0":
             self.flags = []
-            self.flags = copy.copy(cmd_node.flags)
-            self.remove_all_children()
+            self.remove_all_children(True)
 
-            for x in self.flags:
+            for x in cmd_node.flags:
                 self.add_child(make_flag(x["flag"],x["input"], False))
+                self.flags.append({x["flag"],x["input"]})
         else:
             global add_cmd_window
             add_cmd_window = AddCmdWindow("New Command",cmd_node.cmd)
-
-
 
     
     def add_child(self, node, at=-1):
@@ -363,7 +382,6 @@ class CommandNode(DraggableNode):
     def dragEnterEvent(self, e):
         e.accept()
     
-    # when a flag is being moved into a command
     def dropEvent(self, e):
         pos = e.position().toPoint()
         widget = e.source()
@@ -391,7 +409,7 @@ class CommandNode(DraggableNode):
         if on_self:
             self.add_child(widget, insert_index)
         elif isinstance(widget, FlagNode):
-            self.add_child(make_flag(widget.flag, widget.value, False), insert_index)
+            self.add_child(make_flag(widget.flag, widget.input_value, False), insert_index)
 
         e.accept()
 

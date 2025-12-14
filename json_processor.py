@@ -17,10 +17,17 @@ class CmdParser():
                 self.flags.append(({"flag":"","input":out_value}))
     
     def get_cmd(self):
-        cmd = "ffmpeg"
-        for flag in self.flags:
-            cmd += " " + flag["flag"] + " " + flag["input"]
-        return cmd
+        return toCommand(self.flags)
+
+def toCommand(flags):
+    cmd = "ffmpeg"
+    for flag in flags:
+        f = flag["flag"]
+        if f == "out":
+            f = ""
+        cmd += " " + flag["flag"] + " " + flag["input"]
+    return cmd
+
 
 
 
@@ -40,12 +47,12 @@ class JsonProcessor():
     def get_flag(self, name : str) -> dict:
         return self.get_all_data()["flags"][name]
     
-    def add_flag(self, name:str, flag:str, tool_tip:str = ""):
+    def add_flag(self,  flag:str, tool_tip:str = ""):
         try:
             data = self.get_all_data()
         except json.JSONDecodeError:
             data = {}
-        data["flags"][name] = {"flag":flag,"tool_tip":tool_tip}
+        data["flags"][flag] = {}
         with open("ffmpeg_cmd_list.json", "w") as f:
             json.dump(data, f, indent=4, separators=(',',':'))
 

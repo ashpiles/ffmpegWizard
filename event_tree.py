@@ -93,10 +93,12 @@ class Node(QWidget):
             self._children.remove(child)
         return child
     
-    def remove_all_children(self):
+    def remove_all_children(self, delete_flag = False):
         for i in range(len(self._children)):
             child = self._children.pop(0)
             self.internal_layout.removeWidget(child)
+            if delete_flag:
+                child.deleteLater()
     
     def add_child(self, node : QWidget, at = -1):
         # Ensure every path is unique
