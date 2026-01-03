@@ -1,6 +1,6 @@
 # FFMPEG WIZARD
 
-### A tool for saving and creating ffmpeg commands with drag and drop functionality.
+### A tool for saving and creating ffmpeg commands with drag and drop functionality
 
 The application aims to help users get away from the command line while still utilizing the full power of ffmpeg all from a user friendly GUI.
 
