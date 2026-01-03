@@ -5,7 +5,7 @@ import json
 
 class CmdParser():
     def __init__(self, command : str):
-        self.raw_flag_matches = re.findall(r"(-\S+)\s+(\S+)",command) 
+        self.raw_flag_matches = re.findall(r"(-\S+)\s+(\".*?\"|\S+\".*?\"|(?!\S*$)\S+)",command) 
         self.flags = []
         if command != "":
             out_match = re.findall(r"(?:^|\s)(-\S+\s)?(\S+)(?=\s*$)", command)
@@ -15,6 +15,8 @@ class CmdParser():
                 self.flags.append({"flag":match[0],"input":match[1]})
             if out_flag == '':
                 self.flags.append(({"flag":"","input":out_value}))
+            else:
+                self.flags.append(({"flag":out_flag,"input":out_value}))
     
     def get_cmd(self):
         return toCommand(self.flags)

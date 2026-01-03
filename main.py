@@ -449,8 +449,39 @@ def make_IO_dialog(node : FlagNode, io_type):
 
 def run_command(command_node : CommandNode):
     args = command_node.flatten_flags()
-    result = subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
-    print(result.stderr)
+    dlg = QDialog()
+    dlg.setWindowTitle("Running Command")
+    dlg_layout = QVBoxLayout()
+    label = QLabel("Please wait while the command is running")
+    dlg_layout.addWidget(label)
+    dlg_button = QPushButton("OK")
+    dlg_layout.addWidget(dlg_button)
+    dlg_button.clicked.connect(dlg.close)
+
+    dlg.setLayout(dlg_layout)
+    dlg.resize(300,120)
+    dlg.exec()
+    result = subprocess.run(
+        args,
+        timeout=300,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    dlg.close()
+    dlg2 = QDialog()
+    dlg2.setWindowTitle("Command Finished")
+    dlg2.resize(300,120)
+    dlg2_layout = QVBoxLayout()
+    label2 = QLabel("Your command finished running")
+    dlg2_button = QPushButton("OK")
+    dlg2_button.clicked.connect(dlg2.close)
+    dlg2_layout.addWidget(label2)
+    dlg2_layout.addWidget(dlg2_button)
+    dlg2.setLayout(dlg2_layout)
+    dlg2.exec()
+    print(result)
+
 
 app = QApplication(sys.argv)
 
