@@ -1,150 +1,159 @@
 import sys
-import wizard_util as util
+import json_processor as jp
+import event_tree as et
+import subprocess
 import re
+import flow_layout as fl
 from enum import Enum
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-processor = util.processor
-
+add_cmd_window = None
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FFMPEG Wizard")
+        main_layout = QGridLayout()
+        side_bar_layout = QVBoxLayout()
+        self.toggle_layout = QStackedLayout()
+        tree = et.EventTree(main_layout)
+        side_bar = et.Node("left_side_bar", side_bar_layout)
+        side_bar_toolbar = et.Node("toolbar", QHBoxLayout())
+        side_bar_scroll = ScrollNode("scroll", QVBoxLayout())
+        side_bar_content = et.Node("left_side_bar_content", self.toggle_layout)
+        command_zone_scroll = ScrollNode("scroll", QVBoxLayout())
+        self.flag_pallet = DragBoxNode("flag_pallet", QVBoxLayout())
 
-        main_layout = QHBoxLayout()
-        cmd_list_layout = QVBoxLayout()
-        user_input_layout = QVBoxLayout()
-        user_input_upper_layout = QGridLayout()
-        user_input_lower_layout = QGridLayout()
+        self.command_pallet = DragBoxNode("command_pallet", QVBoxLayout())
 
-        self.current_cmd = ""
-        self.cmd_list = CmdListWidget()
-        cmd_list_layout.addWidget(self.cmd_list)
+        self.flag_button = QPushButton("Flags")
+        self.command_button = QPushButton("Commands")
+        self.current_button = "Commands"
 
-        text_box = QTextEdit()
-        text_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        text_box.setFixedHeight(40)
 
-        self.text_box = text_box
-        self.add_cmd = AddCmdButton(text_box)
 
-        # think about how to handle multiple input files
-        input_video = IOButton(util.IOButtonEnum.INFILE)
-        input_video.setText("Input")
-        input_video.setFixedSize(100, 40)
+        # Side Bar
+        #----------------------------------
+        tree.add_child(side_bar,(0,0))
+        tree.internal_layout.setColumnStretch(0, 10)
+        side_bar.add_child(side_bar_toolbar)
+        side_bar.add_child(side_bar_scroll)
+        side_bar_scroll.add_child(side_bar_content)
+        side_bar_content.add_child(self.command_pallet)
+        side_bar_content.add_child(self.flag_pallet)
 
-        output_button = IOButton(util.IOButtonEnum.OUTFILE)
-        output_button.setText("Output")
-        output_button.setFixedSize(100, 40)
+        self.flag_button.setCheckable(True)
+        self.command_button.setCheckable(True)
+        self.command_button.setChecked(True)
+        self.flag_button.clicked.connect(self.switch_side_bar)
+        self.command_button.clicked.connect(self.switch_side_bar)
+        side_bar_toolbar.internal_layout.addWidget(self.flag_button)
+        side_bar_toolbar.internal_layout.addWidget(self.command_button)
+        side_bar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
+
+        self.flag_pallet.internal_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.flag_pallet.internal_layout.setSpacing(2)
+        self.command_pallet.internal_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.command_pallet.internal_layout.setSpacing(2)
+
+        self.update_pallets()
+
+
+        # Command Zone
+        tree.add_child(command_zone_scroll,(0,1))
+        current_cmd = make_command("current_command", "", False)
+        command_zone_scroll.add_child(current_cmd)
+        current_cmd.setStyleSheet("background-color: #262626")
+
+
+        end_row = QVBoxLayout()
+        end_row_spacer = QSpacerItem(0, 40)
+        end_row.setAlignment(Qt.AlignmentFlag.AlignTop)
         run_button = QPushButton()
+        add_cmd_button = QPushButton()
+        add_cmd_button.setText("Add Command")
+
+
+        add_cmd_button.clicked.connect(lambda: self.add_command_window())
         run_button.setText("Run")
-        run_button.setFixedSize(100, 40)
+        run_button.clicked.connect(lambda: run_command(current_cmd))
+        end_row.addSpacerItem(end_row_spacer)
+        end_row.addWidget(add_cmd_button)
+        end_row.addSpacerItem(end_row_spacer)
+        end_row.addWidget(run_button)
 
-        user_input_upper_layout.addWidget(text_box,1,0)
-        user_input_upper_layout.addWidget(self.add_cmd,0,1)
+        tree.add_child(et.Node("end_row", end_row),(0,2))
+        current_cmd.internal_layout.setContentsMargins(20,20,20,20)
+        current_cmd.internal_layout.setSpacing(1)
 
-        user_input_lower_layout.addWidget(input_video,0,0)
-        user_input_lower_layout.addWidget(output_button,0,1)
-        user_input_lower_layout.addWidget(run_button,2,0)
-
-        cmd_list_layout.setStretch(0, 1)
-        user_input_layout.addLayout(user_input_upper_layout)
-        user_input_layout.addLayout(user_input_lower_layout)
-        main_layout.addLayout(cmd_list_layout)
-        main_layout.addLayout(user_input_layout)
-        main_layout.setStretch(0,1)
-
-        widget = QWidget()
-        widget.setLayout(main_layout)
-        self.setCentralWidget(widget)
-
-        widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-
+        self.setCentralWidget(tree)
         self.show()
 
-    def event(self, e):
-        if e.type() == util.CmdChangedEventType:
-            self.cmd_list.update_list()
-            self.current_cmd = e.cmd_input
-            self.text_box.setText(util.toCommand(self.current_cmd))
-            return True
-        elif e.type() == util.CmdTextEditedEventType:
-            self.current_cmd[e.cmd_flag] = e.cmd_value
-            cmd = util.toCommand(self.current_cmd)
-            self.text_box.setText(cmd)
-            print(cmd)
-            return True
-        elif e.type() == util.FileIOEventType:
-            match e.io_type:
-                case util.IOButtonEnum.INFILE:
-                    self.current_cmd["-i"] = e.file_path
-                case util.IOButtonEnum.OUTFILE:
-                    self.current_cmd["out"] = e.file_path
-                case util.IOButtonEnum.DIRECTORY:
-                    pass
-            self.text_box.setText(util.toCommand(self.current_cmd))
-        return super().event(e)
+    def add_command_window(self,  name = "Command Name", cmd = "ffmpeg -i in.mkv out.mp4"):
+        global add_cmd_window
+        add_cmd_window = AddCmdWindow(name, cmd)
+        add_cmd_window.command_added.connect(self.update_pallets)
 
 
-class CmdListWidget(QListWidget):
-    def __init__(self):
-        super().__init__()
-        global processor
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-
-        # i need a way to convert cmds to json and json to cmds
-        scroll_bar = QScrollBar(self)
-        scroll_bar.setStyleSheet("background : gray;")
-        self.setVerticalScrollBar(scroll_bar)
-        self.update_list()
-
-        self.itemClicked.connect(self.cmd_clicked)
+    def update_pallets(self):
+        self.flag_pallet.remove_all_children()
+        self.command_pallet.remove_all_children()
+        self.make_flag_pallet(self.flag_pallet)
+        self.make_command_pallet(self.command_pallet)
     
-    def update_list(self):
-        self.clear()
-        for command in processor.get_all_commands():
-            item = QListWidgetItem(command)
-            self.addItem(item)
-    
-    def cmd_clicked(self, item : QListWidgetItem):
-        global processor
-        current_cmd = {item.text() : processor.get_command(item.text())}
-        QApplication.postEvent(window, util.CmdChangedEvent(current_cmd))
+
+    def switch_side_bar(self, button):
+        match self.current_button:
+            case "Commands":
+                self.current_button = "Flags"
+                self.command_button.setChecked(False)
+                self.flag_button.setChecked(True)
+                self.toggle_layout.setCurrentWidget(self.flag_pallet)
+            case "Flags":
+                self.current_button = "Commands"
+                self.command_button.setChecked(True)
+                self.flag_button.setChecked(False)
+                self.toggle_layout.setCurrentWidget(self.command_pallet)
+            case default:
+                pass
 
 
-class AddCmdButton(QPushButton):
-    def __init__(self, input_text_box : QTextEdit):
-        super().__init__()
-        self.geometry = QRect(20,20,10,10)
-        self.clicked.connect(self.add_new_cmd)
-        self.input_box = input_text_box
+    def make_command_pallet(self, node : et.Node):
+        commands = jp.processor.get_all_data()["commands"]
+        for c in commands.items():
+            name = c[0]
+            cmd = "ffmpeg"
+            for x in c[1]:
+                cmd += " " + x["flag"] + " " + x["input"] 
+            command_node = make_command(name, cmd)
+            node.add_child(command_node)
+
     
-    def add_new_cmd(self):
-        self.w = AddCmdWindow()
-        self.w.show()
+    def make_flag_pallet(self, node : et.Node):
+        flags = jp.processor.get_all_data()["flags"]
+        for pair in flags.items():
+            flag, flag_data = pair
+            node.add_child(make_flag(flag, flag_data))
 
 
 class AddCmdWindow(QWidget):
-    def __init__(self):
+    command_added = pyqtSignal(str,str)
+    def __init__(self, name, cmd ):
         super().__init__()
-        global processor
         layout = QVBoxLayout()
 
-        label = QLabel("Edit and name command before adding\nCapture part of a value with [ ] brackets to create a variable")
-
-        name_box = QTextEdit("New Command")
+        name_box = QTextEdit(name)
         name_box.setMaximumHeight(30)
-        name_box.setMaximumWidth(120)
+        name_box.setMaximumWidth(180)
         name_box.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self.name_edit_text = name_box
 
-        edit_box = QTextEdit(util.toCommand(window.current_cmd))
-        edit_box.setMaximumHeight(80)
+        edit_box = QTextEdit(cmd)
+        edit_box.setMaximumHeight(45)
         edit_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.cmd_edit_text = edit_box
@@ -155,62 +164,324 @@ class AddCmdWindow(QWidget):
         push_button.setMaximumWidth(100)
         push_button.clicked.connect(self.on_click)
 
-        layout.addWidget(label)
         layout.addWidget(name_box)
         layout.addWidget(edit_box)
         layout.addWidget(push_button)
 
         self.setLayout(layout)
+        self.show()
      
     def on_click(self):
-        global processor
-        processor.add_command(self.name_edit_text.toPlainText(), self.cmd_edit_text.toPlainText())
+        name = self.name_edit_text.toPlainText()
+        cmd = self.cmd_edit_text.toPlainText()
+        flags = jp.CmdParser(cmd).flags
+        jp.processor.add_command(name, cmd)
+        for f in flags:
+            jp.processor.add_flag(f["flag"])
+        self.command_added.emit(name,cmd)
 
 
-class IOButton(QPushButton):
-    def __init__(self, io_type : util.IOButtonEnum):
-        super().__init__()
-        self.io_type = io_type
-        self.io_path = ""
-        self.clicked.connect(self.get_io_func())
+def make_command(name, cmd, front = True):
+    node = CommandNode(name, cmd)
+    label = QLabel("")
+    label.setText(name)
+    label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    label.setContentsMargins(5,0,5,0)
+    label_font = QFont()
+    label_font.setBold(True)
+    label.setFont(label_font)
 
-    def get_io_func(self):
-        match self.io_type:
-            case util.IOButtonEnum.INFILE:
-                return self.browse_for_in_file
-            case util.IOButtonEnum.DIRECTORY:
-                return self.browse_for_directory
-            case util.IOButtonEnum.OUTFILE:
-                return self.browse_for_out_file
-        
-    def browse_for_directory(self):
-        folder_path = QFileDialog.getExistingDirectory(self, "Select a Directory")
+    if not front:
+        label.setText("ffmpeg")
+        label.setFixedHeight(30)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Fixed)
+        node.internal_layout.addWidget(label)
+        node.internal_layout.setSpacing(3)
+        return node 
 
-        if folder_path:
-            self.io_path = folder_path
-            QApplication.postEvent(window, util.FileIOEvent((self.file_path, self.io_type)))
-            return folder_path
-        return ""
+    label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    node.internal_layout.addWidget(label)
+    node.setStyleSheet("background-color: #2f2f30")
+    node.setAcceptDrops(False)
+    return node 
+
+
+def make_flag(flag, value, front = True):
+    if flag == "":
+        flag = "out"
+    flag_layout = QVBoxLayout()
+    node = FlagNode(flag, value, flag_layout)
+
+    label = QLabel(flag)
+    label_font = QFont()
+    label_font.setBold(True)
+    label.setFont(label_font)
+    label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    input_box = QTextEdit()
+
+    if type(value) is str:
+        input_box.setText(value)
+    input_box.setFixedSize(80,30)
+    def updateEditText():
+        width = input_box.width()
+        height = input_box.height()
+        str_len = len(input_box.toPlainText())
+        len_cap = 4
+
+        width = 80 if str_len <= len_cap*4 else 160
+        height = 30 if str_len <= len_cap*2 else 60
+        input_box.setFixedWidth(width)
+        input_box.setFixedHeight(height)
+        node.input_value = input_box.toPlainText()
+
+    updateEditText()
+    input_box.textChanged.connect(updateEditText)
+
+    if front:
+        label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        label.setContentsMargins(5,0,5,0)
+        label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        flag_layout.addWidget(label)
+        flag_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        node.setStyleSheet("background-color: #2f2f30")
+        node.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    else:
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setFixedHeight(30)
+        label.setMinimumWidth(80)
+
+        flag_layout.addWidget(label)
+        flag_layout.addWidget(input_box)
+        input_box.setHidden(True)
+        if flag == "out" or flag == "-i":
+            io_type = IODialogEnum.INFILE if flag == "-i" else IODialogEnum.OUTFILE
+            node.doubleClicked.connect(lambda: make_IO_dialog(node,io_type))
+        else:
+            node.doubleClicked.connect(lambda : input_box.setHidden(not input_box.isHidden()))
+        node.setBaseSize(40,50)
+        node.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+        node.setContentsMargins(10, 0, 10, 30)
+
+    return node
+
+class IODialogEnum(Enum):
+    DIRECTORY = 1
+    INFILE = 2
+    OUTFILE = 3
+
+
+class DraggableNode(et.Node):
+    def __init__(self, name : str, layout : QLayout):
+        super().__init__(name, layout)
+
+    def mouseMoveEvent(self, e):
+        if e.buttons() == Qt.MouseButton.LeftButton:
+            drag = QDrag(self)
+            mime = QMimeData()
+            drag.setMimeData(mime)
+            pixmap = QPixmap(self.size())
+            self.render(pixmap)
+            drag.setPixmap(pixmap)
+            drag.exec(Qt.DropAction.MoveAction)
+
+class DragBoxNode(et.Node):
+    def __init__(self, name : str, layout : QLayout):
+        super().__init__(name, layout)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        e.accept()
     
-    def browse_for_out_file(self):
-        file_path = QFileDialog.getSaveFileName(self, "Save Output File", "", "Video Files (*.mp4);;All Files (*)")
+    def dropEvent(self, e):
+        pos = e.position()
+        widget = e.source()
+        if not self.has_child(widget) and type(widget) is FlagNode:
+            widget.deleteLater()
+            widget.remove_self()
+            e.accept()
+            return
+        elif not self.has_child(widget) and type(widget) is CommandNode:
+            widget.update_flags()
+            window.add_command_window(widget.name, jp.toCommand(widget.flags))
+            e.accept()
+            return
+        self.remove_child(widget)
 
-        if file_path:
-            self.io_path, _= file_path
-            QApplication.postEvent(window, util.FileIOEvent((self.io_path, self.io_type)))
-            return file_path
-        return file_path
+        n = 0
+        for n in range(self.internal_layout.count()):
+            w = self.internal_layout.itemAt(n).widget()
+            if pos.y() < w.y() + w.size().height() // 2:
+                break
+            elif pos.x() < w.x() + w.size().width() // 2:
+                break
+        else:
+            n +=1
+        self.add_child(widget, n)
+        e.accept()
 
-    def browse_for_in_file(self):
-        file_path = QFileDialog.getOpenFileName(self, "Select a File","","All Files (*)")
 
-        if file_path:
-            self.io_path, _ = file_path
-            QApplication.postEvent(window, util.FileIOEvent((self.io_path, self.io_type)))
-            return file_path
-        
-        return ""
+class ScrollNode(et.Node):
+    def __init__(self, name: str, layout: QLayout):
+        super().__init__(name, layout)
+
+        self.container = QWidget()
+        self.container.setLayout(self.internal_layout)
+
+        # scroll setup
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.container)
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addWidget(self.scroll)
+        self.setLayout(self.main_layout)
+
+class FlagNode(DraggableNode):
+    doubleClicked = pyqtSignal()
+    def __init__(self, name, input_value, layout):
+        self.flag = name
+        self.input_value = input_value
+        super().__init__(name, layout)
     
+
+    def mouseDoubleClickEvent(self, e):
+        if e.button() == e.buttons().LeftButton:
+            self.doubleClicked.emit()
+        return super().mouseDoubleClickEvent(e)
+
+
+class CommandNode(DraggableNode):
+    def __init__(self, name : str, cmd : str):
+        super().__init__(name, fl.FlowLayout())
+        self.setAcceptDrops(True)
+        parser = jp.CmdParser(cmd)
+        self.flags = parser.flags
+        self.cmd = cmd
+
+    def update_flags(self):
+        self.flags = []
+        for n in range(self.internal_layout.count()):
+            w = self.internal_layout.itemAt(n)
+            if w is None:
+                return
+            widget = w.widget()
+            if type(widget) is FlagNode:
+                self.flags.append({"flag":widget.flag, "input":widget.input_value})
+
+    def flatten_flags(self):
+        self.update_flags()
+        args = ["ffmpeg"]
+        for f in self.flags:
+            flag = f["flag"] 
+            value = f["input"]
+            value = value.replace('"','')
+            if flag != "out":
+                args.append(flag)
+            args.append(value)
+        return args
+
+    def replace_command(self, cmd_node):
+        if self.name == "current_command.0":
+            self.flags = []
+            self.remove_all_children(True)
+
+            for x in cmd_node.flags:
+                self.add_child(make_flag(x["flag"],x["input"], False))
+                self.flags.append({x["flag"],x["input"]})
+        else:
+            global add_cmd_window
+            add_cmd_window = AddCmdWindow("New Command",cmd_node.cmd)
+
+    
+    def add_child(self, node, at=-1):
+        if type(node) is FlagNode:
+            return super().add_child(node, at)
+        elif type(node) is DraggableNode:
+                return
+        return 
+    
+    def dragEnterEvent(self, e):
+        e.accept()
+    
+    def dropEvent(self, e):
+        pos = e.position().toPoint()
+        widget = e.source()
+        on_self = self.has_child(widget)
+
+        self.remove_child(widget)
+        layout = self.internal_layout
+
+        if isinstance(widget, CommandNode):
+            self.replace_command(widget)
+
+        insert_index = layout.count()  # default = append
+
+        for i in range(1, layout.count()):
+            item = layout.itemAt(i)
+            w = item.widget()
+            if w is None:
+                continue
+
+            rect = w.geometry()
+            if rect.contains(pos):
+                insert_index = i
+                break
+
+        if on_self:
+            self.add_child(widget, insert_index)
+        elif isinstance(widget, FlagNode):
+            self.add_child(make_flag(widget.flag, widget.input_value, False), insert_index)
+
+        e.accept()
+
+def make_IO_dialog(node : FlagNode, io_type):
+    match io_type:
+        case IODialogEnum.DIRECTORY:
+            node.input_value = QFileDialog.getExistingDirectory(node, "Select a Directory")
+        case IODialogEnum.INFILE:
+            file, _ = QFileDialog.getOpenFileName(node, "Select a File","","All Files (*)")
+            node.input_value = file
+        case IODialogEnum.OUTFILE:
+            file, _ = QFileDialog.getSaveFileName(node, "Save As", "", "Video Files (*.mp4);;All Files (*)")
+            node.input_value = file
+
+def run_command(command_node : CommandNode):
+    args = command_node.flatten_flags()
+    dlg = QDialog()
+    dlg.setWindowTitle("Running Command")
+    dlg_layout = QVBoxLayout()
+    label = QLabel("Please wait while the command is running")
+    dlg_layout.addWidget(label)
+    dlg_button = QPushButton("OK")
+    dlg_layout.addWidget(dlg_button)
+    dlg_button.clicked.connect(dlg.close)
+
+    dlg.setLayout(dlg_layout)
+    dlg.resize(300,120)
+    dlg.exec()
+    result = subprocess.run(
+        args,
+        timeout=300,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    dlg.close()
+    dlg2 = QDialog()
+    dlg2.setWindowTitle("Command Finished")
+    dlg2.resize(300,120)
+    dlg2_layout = QVBoxLayout()
+    label2 = QLabel("Your command finished running")
+    dlg2_button = QPushButton("OK")
+    dlg2_button.clicked.connect(dlg2.close)
+    dlg2_layout.addWidget(label2)
+    dlg2_layout.addWidget(dlg2_button)
+    dlg2.setLayout(dlg2_layout)
+    dlg2.exec()
+    print(result)
+
 
 app = QApplication(sys.argv)
 
